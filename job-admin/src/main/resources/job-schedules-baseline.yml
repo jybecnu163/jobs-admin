@@ -1,0 +1,13 @@
+jobs:
+  - name: "demo-cron-job"
+    system: "demo-service"
+    scheduleType: "CRON"
+    scheduleExpr: "0/30 * * * * ?"
+    enabled: true
+    description: "示例定时任务 - 每30秒执行"
+  - name: "demo-long-task"
+    system: "demo-service"
+    scheduleType: "NONE"
+    longRunning: true
+    enabled: false
+    description: "示例长任务 - 手动触发"

@@ -1,0 +1,12 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: job-demo
+
+job:
+  executor:
+    enabled: true
+    admin-url: http://localhost:8080
+    system-code: job-demo   # 必须与 Admin 中预期的系统标识一致

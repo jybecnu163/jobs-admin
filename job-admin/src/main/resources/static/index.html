@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Job 管理中心</title>
+    <!-- 使用稳定 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/element-plus/dist/index.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            margin: 20px;
+        }
+
+        .debug {
+            background: #f5f5f5;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="header">
+        <h2>Job 管理中心 <small>{{ envName }}</small></h2>
+        <el-button type="primary" @click="loadJobs">刷新</el-button>
+    </div>
+
+    <!--    &lt;!&ndash; 调试信息 &ndash;&gt;-->
+    <!--    <div class="debug">-->
+    <!--        <strong>调试信息：</strong>-->
+    <!--        数据条数：<b>{{ jobs.length }}</b> &nbsp;|&nbsp;-->
+    <!--        加载状态：<b>{{ loading ? '加载中...' : '已完成' }}</b>-->
+    <!--    </div>-->
+
+    <!--    &lt;!&ndash; 直接展示原始 JSON（可折叠） &ndash;&gt;-->
+    <!--    <el-collapse style="margin-bottom:15px">-->
+    <!--        <el-collapse-item title="点击查看原始数据">-->
+    <!--            <pre>{{ JSON.stringify(jobs, null, 2) }}</pre>-->
+    <!--        </el-collapse-item>-->
+    <!--    </el-collapse>-->
+
+    <!-- 表格 -->
+    <table border="1" cellpadding="8" style="border-collapse:collapse; width:100%">
+        <thead>
+        <tr>
+            <th>Job名称</th>
+            <th>系统</th>
+            <th>状态</th>
+            <th>调度类型</th>
+            <th>表达式</th>
+            <th>描述</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr v-for="job in jobs" :key="job.id">
+            <td>{{ job.jobName }}</td>
+            <td>{{ job.systemCode }}</td>
+            <td :style="{ color: statusColor(job.status) }">{{ statusText(job.status) }}</td>
+            <td>{{ job.scheduleType }}</td>
+            <td>{{ job.scheduleExpr }}</td>
+            <td>{{ job.description }}</td>
+            <td>
+                <button v-if="job.status==='ENABLED'" @click="disableJob(job)">禁用</button>
+                <button v-if="job.status==='DISABLED'" @click="enableJob(job)">启用</button>
+                <button @click="executeJob(job)">执行</button>
+                <button v-if="job.longRunning" @click="stopJob(job)">停止</button>
+                <button @click="openEditDialog(job)">调度</button>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <!--    <el-table :data="jobs" border stripe v-loading="loading" empty-text="暂无数据，请先确认系统注册成功">-->
+    <!--        <el-table-column prop="jobName" label="Job 名称" width="200"/>-->
+    <!--        <el-table-column prop="systemCode" label="系统" width="150"/>-->
+    <!--        <el-table-column label="状态" width="120">-->
+    <!--            <template #default="scope">-->
+    <!--                <el-tag :type="statusType(scope.row.status)" effect="dark">-->
+    <!--                    {{ statusText(scope.row.status) }}-->
+    <!--                </el-tag>-->
+    <!--            </template>-->
+    <!--        </el-table-column>-->
+    <!--        <el-table-column prop="scheduleType" label="调度类型" width="120"/>-->
+    <!--        <el-table-column prop="scheduleExpr" label="调度表达式" width="180"/>-->
+    <!--        <el-table-column prop="description" label="描述" show-overflow-tooltip/>-->
+    <!--        <el-table-column label="操作" width="280" fixed="right">-->
+    <!--            <template #default="scope">-->
+    <!--                <el-button v-if="scope.row.status === 'ENABLED'" size="small" type="warning"-->
+    <!--                           @click="disableJob(scope.row)">禁用-->
+    <!--                </el-button>-->
+    <!--                <el-button v-if="scope.row.status === 'DISABLED'" size="small" type="success"-->
+    <!--                           @click="enableJob(scope.row)">启用-->
+    <!--                </el-button>-->
+    <!--                <el-button size="small" type="primary" :disabled="scope.row.status === 'UNREACHABLE'"-->
+    <!--                           @click="executeJob(scope.row)">执行-->
+    <!--                </el-button>-->
+    <!--                <el-button v-if="scope.row.longRunning" size="small" type="danger"-->
+    <!--                           :disabled="scope.row.status === 'UNREACHABLE'" @click="stopJob(scope.row)">停止-->
+    <!--                </el-button>-->
+    <!--                <el-button size="small" @click="openEditDialog(scope.row)">调度</el-button>-->
+    <!--            </template>-->
+    <!--        </el-table-column>-->
+    <!--    </el-table>-->
+
+    <!-- 编辑对话框（不变） -->
+    <el-dialog v-model="editDialogVisible" title="编辑调度配置" width="500px">
+        <el-form :model="editForm" label-width="100px">
+            <el-form-item label="调度类型">
+                <el-select v-model="editForm.scheduleType">
+                    <el-option label="无（手动）" value="NONE"/>
+                    <el-option label="CRON" value="CRON"/>
+                    <el-option label="固定延迟(毫秒)" value="FIXED_RATE"/>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="表达式" v-if="editForm.scheduleType !== 'NONE'">
+                <el-input v-model="editForm.scheduleExpr"/>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="editDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="saveScheduleConfig">保存</el-button>
+        </template>
+    </el-dialog>
+</div>
+
+<script>
+    const {createApp, ref, reactive, onMounted} = Vue
+
+    const app = createApp({
+        setup() {
+            // 改为你的实际地址
+            const API_BASE = 'http://localhost:8080/api'
+            const ENV_NAME = '-测试'
+
+            const jobs = ref([])
+            const loading = ref(false)
+            const editDialogVisible = ref(false)
+            const editForm = reactive({id: null, jobName: '', scheduleType: 'NONE', scheduleExpr: ''})
+
+            const statusType = (s) => {
+                if (s === 'ENABLED') return 'success'
+                if (s === 'DISABLED') return 'info'
+                if (s === 'UNREACHABLE') return 'danger'
+                return ''
+            }
+            const statusText = (s) => {
+                if (s === 'ENABLED') return '已启用'
+                if (s === 'DISABLED') return '已禁用'
+                if (s === 'UNREACHABLE') return '不可调度'
+                return s
+            }
+
+            const loadJobs = async () => {
+                loading.value = true
+                try {
+                    const res = await axios.get(`${API_BASE}/jobs`)
+                    console.log('获取到的数据：', res.data)
+                    jobs.value = res.data
+                } catch (e) {
+                    console.error('请求失败：', e)
+                    ElementPlus.ElMessage.error('加载失败: ' + e.message)
+                } finally {
+                    loading.value = false
+                }
+            }
+
+            const enableJob = async (job) => {
+                try {
+                    await axios.put(`${API_BASE}/jobs/${job.id}`, {...job, status: 'ENABLED'})
+                    ElementPlus.ElMessage.success('已启用')
+                    loadJobs()
+                } catch (e) {
+                    ElementPlus.ElMessage.error('操作失败')
+                }
+            }
+
+            const disableJob = async (job) => {
+                try {
+                    await axios.put(`${API_BASE}/jobs/${job.id}`, {...job, status: 'DISABLED'})
+                    ElementPlus.ElMessage.success('已禁用')
+                    loadJobs()
+                } catch (e) {
+                    ElementPlus.ElMessage.error('操作失败')
+                }
+            }
+
+            const executeJob = async (job) => {
+                try {
+                    await axios.post(`${API_BASE}/schedule/execute/${job.id}`)
+                    ElementPlus.ElMessage.success('执行指令已发送')
+                } catch (e) {
+                    ElementPlus.ElMessage.error('执行失败')
+                }
+            }
+
+            const stopJob = async (job) => {
+                try {
+                    await axios.post(`${API_BASE}/schedule/stop/${job.id}`)
+                    ElementPlus.ElMessage.success('停止指令已发送')
+                } catch (e) {
+                    ElementPlus.ElMessage.error('停止失败')
+                }
+            }
+
+            const openEditDialog = (job) => {
+                editForm.id = job.id
+                editForm.jobName = job.jobName
+                editForm.scheduleType = job.scheduleType || 'NONE'
+                editForm.scheduleExpr = job.scheduleExpr || ''
+                editDialogVisible.value = true
+            }
+
+            const saveScheduleConfig = async () => {
+                try {
+                    const job = jobs.value.find(j => j.id === editForm.id)
+                    if (!job) return
+                    await axios.put(`${API_BASE}/jobs/${editForm.id}`, {
+                        ...job,
+                        scheduleType: editForm.scheduleType,
+                        scheduleExpr: editForm.scheduleExpr
+                    })
+                    ElementPlus.ElMessage.success('调度配置已更新')
+                    editDialogVisible.value = false
+                    loadJobs()
+                } catch (e) {
+                    ElementPlus.ElMessage.error('保存失败')
+                }
+            }
+            const statusColor = (s) => {
+                return s === 'ENABLED' ? 'green' : s === 'UNREACHABLE' ? 'red' : 'gray'
+            }
+
+            onMounted(() => {
+                loadJobs()
+                setInterval(loadJobs, 10000)
+            })
+
+            return {
+                envName: ENV_NAME,
+                statusColor,
+                jobs,
+                loading,
+                editDialogVisible,
+                statusType,
+                statusText,
+                loadJobs,
+                enableJob,
+                disableJob,
+                executeJob,
+                stopJob,
+                openEditDialog,
+                saveScheduleConfig
+            }
+        }
+    })
+
+    app.use(ElementPlus)
+    app.mount('#app')
+</script>
+</body>
+</html>

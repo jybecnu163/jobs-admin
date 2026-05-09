@@ -1,0 +1,17 @@
+job-admin/target
+job-demo/target
+job-demo/.mvn
+job-demo/.gitattributes
+job-demo/.gitignore
+
+job-executor-starter/target
+backend/test/
+backend/package-lock.json
+frontend/node_modules/
+frontend/package-lock.json
+
+*.js
+
+.idea
+
+.github
