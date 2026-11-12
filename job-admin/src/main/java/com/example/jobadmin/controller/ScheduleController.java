@@ -32,7 +32,11 @@ public class ScheduleController {
             return ResponseEntity.badRequest().body("该系统无在线实例，无法执行");
         }
 
-        dispatcher.execute(job);
+        try {
+            dispatcher.execute(job);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
         return ResponseEntity.ok("执行指令已发送");
     }
 

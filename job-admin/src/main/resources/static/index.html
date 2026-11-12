@@ -199,7 +199,7 @@
                     await axios.post(`${API_BASE}/schedule/execute/${job.id}`)
                     ElementPlus.ElMessage.success('执行指令已发送')
                 } catch (e) {
-                    ElementPlus.ElMessage.error('执行失败')
+                    ElementPlus.ElMessage.error(e.response?.data || '执行失败')
                 }
             }
 

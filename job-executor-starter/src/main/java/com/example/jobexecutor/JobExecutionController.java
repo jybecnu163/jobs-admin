@@ -1,6 +1,8 @@
 package com.example.jobexecutor;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -8,10 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.reflect.Method;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 
 /**
  * 作用：
@@ -36,23 +35,36 @@ public class JobExecutionController {
     private final Map<String, Future<?>> runningTasks = new ConcurrentHashMap<>();
 
     @PostMapping("/execute")
-    public String execute(@RequestBody Map<String, String> request) {
+    public ResponseEntity<String> execute(@RequestBody Map<String, String> request) {
         String jobName = request.get("jobName");
         Method method = scanner.getMethod(jobName);
         Object bean = scanner.getBean(jobName);
         if (method == null || bean == null) {
-            return "Job not found: " + jobName;
+            return ResponseEntity.badRequest().body("Job not found: " + jobName);
         }
-        // 对于长任务，异步执行并保存 Future
-        Future<?> future = threadPool.submit(() -> {
+        // 先创建任务，再通过 putIfAbsent 原子地登记，避免并发提交绕过重复检查
+        FutureTask<Void> task = new FutureTask<>(() -> {
             try {
                 method.invoke(bean);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+            return null;
         });
-        runningTasks.put(jobName, future);
-        return "executed";
+        while (true) {
+            Future<?> prev = runningTasks.putIfAbsent(jobName, task);
+            if (prev == null) {
+                break;
+            }
+            if (!prev.isDone()) {
+                // 同名任务仍在运行，拒绝本次提交
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("任务已在执行，提交失败");
+            }
+            // 旧任务已结束，清理残留记录后重试登记
+            runningTasks.remove(jobName, prev);
+        }
+        threadPool.execute(task);
+        return ResponseEntity.ok("executed");
     }
 
     @PostMapping("/stop")

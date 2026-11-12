@@ -4,6 +4,7 @@ import com.example.jobadmin.entity.ExecutorInstance;
 import com.example.jobadmin.entity.JobDefinition;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
@@ -21,7 +22,12 @@ public class JobExecutionDispatcher {
         }
         String url = String.format("http://%s:%d/executor/execute", target.getHost(), target.getPort());
         System.err.println("execute:" + job.getId() + " url:" + url);
-        restTemplate.postForObject(url, Map.of("jobName", job.getJobName()), String.class);
+        try {
+            restTemplate.postForObject(url, Map.of("jobName", job.getJobName()), String.class);
+        } catch (HttpStatusCodeException e) {
+            // 执行器返回 4xx/5xx 时（如重复执行 409），把原始错误信息抛给上层
+            throw new RuntimeException(e.getResponseBodyAsString());
+        }
     }
 
     public void stop(JobDefinition job) {
