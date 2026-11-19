@@ -6,6 +6,10 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+/**
+ * 任务定义实体，一条记录对应执行器上的一个 @Job 方法；调度配置由 Admin 侧管理。
+ * status：ENABLED / DISABLED / UNREACHABLE；scheduleType：NONE / FIXED_RATE / CRON。
+ */
 @Data
 @TableName("job_definition")
 public class JobDefinition {

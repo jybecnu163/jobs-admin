@@ -7,8 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
+/**
+ * 指令下发服务：通过 HTTP REST 调用执行器的 execute/stop/running 接口，并透传执行器返回的错误信息。
+ */
 @Service
 @RequiredArgsConstructor
 public class JobExecutionDispatcher {
@@ -37,5 +42,12 @@ public class JobExecutionDispatcher {
         }
         String url = String.format("http://%s:%d/executor/stop", target.getHost(), target.getPort());
         restTemplate.postForObject(url, Map.of("jobName", job.getJobName()), String.class);
+    }
+
+    // 查询指定执行器实例上仍在运行中的任务名列表
+    public List<String> queryRunningJobs(ExecutorInstance target) {
+        String url = String.format("http://%s:%d/executor/running", target.getHost(), target.getPort());
+        String[] arr = restTemplate.getForObject(url, String[].class);
+        return arr == null ? List.of() : Arrays.asList(arr);
     }
 }

@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 配置同步接口：导出全部任务定义，导入时校验审批 Token 后由 ConfigSyncService 落库并记录变更日志。
+ */
 @RestController
 @RequestMapping("/api/config")
 @RequiredArgsConstructor

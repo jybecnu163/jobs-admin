@@ -3,12 +3,15 @@ package com.example.jobexecutor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -34,6 +37,9 @@ public class JobExecutionController {
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
     private final Map<String, Future<?>> runningTasks = new ConcurrentHashMap<>();
 
+    /**
+     * 执行任务：同名任务仍在运行时返回 409 拒绝提交，避免旧 Future 被覆盖后无法停止。
+     */
     @PostMapping("/execute")
     public ResponseEntity<String> execute(@RequestBody Map<String, String> request) {
         String jobName = request.get("jobName");
@@ -67,6 +73,9 @@ public class JobExecutionController {
         return ResponseEntity.ok("executed");
     }
 
+    /**
+     * 停止任务：移除对应 Future 并通过中断方式尝试终止任务线程，依赖任务代码正确响应中断。
+     */
     @PostMapping("/stop")
     public String stop(@RequestBody Map<String, String> request) {
         String jobName = request.get("jobName");
@@ -76,5 +85,21 @@ public class JobExecutionController {
             return "stopped";
         }
         return "no running task";
+    }
+
+    /**
+     * 返回当前仍在运行中的任务名列表，供 Admin 查询展示"在执行"状态；顺带清理已结束的残留记录。
+     */
+    @GetMapping("/running")
+    public List<String> running() {
+        List<String> running = new ArrayList<>();
+        runningTasks.forEach((jobName, future) -> {
+            if (!future.isDone()) {
+                running.add(jobName);
+            } else {
+                runningTasks.remove(jobName, future);
+            }
+        });
+        return running;
     }
 }

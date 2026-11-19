@@ -66,7 +66,7 @@
         <tr v-for="job in jobs" :key="job.id">
             <td>{{ job.jobName }}</td>
             <td>{{ job.systemCode }}</td>
-            <td :style="{ color: statusColor(job.status) }">{{ statusText(job.status) }}</td>
+            <td :style="{ color: isRunning(job) ? '#e6a23c' : statusColor(job.status) }">{{ isRunning(job) ? '在执行' : statusText(job.status) }}</td>
             <td>{{ job.scheduleType }}</td>
             <td>{{ job.scheduleExpr }}</td>
             <td>{{ job.description }}</td>
@@ -143,6 +143,7 @@
             const ENV_NAME = '-测试'
 
             const jobs = ref([])
+            const runningJobs = ref([])
             const loading = ref(false)
             const editDialogVisible = ref(false)
             const editForm = reactive({id: null, jobName: '', scheduleType: 'NONE', scheduleExpr: ''})
@@ -166,6 +167,13 @@
                     const res = await axios.get(`${API_BASE}/jobs`)
                     console.log('获取到的数据：', res.data)
                     jobs.value = res.data
+                    try {
+                        const r = await axios.get(`${API_BASE}/schedule/running`)
+                        runningJobs.value = r.data || []
+                    } catch (e) {
+                        console.error('查询运行中任务失败：', e)
+                        runningJobs.value = []
+                    }
                 } catch (e) {
                     console.error('请求失败：', e)
                     ElementPlus.ElMessage.error('加载失败: ' + e.message)
@@ -173,6 +181,8 @@
                     loading.value = false
                 }
             }
+
+            const isRunning = (job) => runningJobs.value.includes(job.jobName)
 
             const enableJob = async (job) => {
                 try {
@@ -248,6 +258,7 @@
             return {
                 envName: ENV_NAME,
                 statusColor,
+                isRunning,
                 jobs,
                 loading,
                 editDialogVisible,

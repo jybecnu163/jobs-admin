@@ -10,6 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 配置导入服务：在同一个事务内记录变更审计日志并保存导入的任务定义。
+ */
 @Service
 @RequiredArgsConstructor
 public class ConfigSyncService {

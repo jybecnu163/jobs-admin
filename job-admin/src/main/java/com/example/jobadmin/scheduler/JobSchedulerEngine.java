@@ -14,6 +14,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 调度引擎：每 5 秒扫描启用的 FIXED_RATE 任务，按间隔触发下发；lastExecution 防止同一周期重复触发。
+ * 当前 CRON 分支尚未实现，详见 scheduleFixedRateJobs 中的注释。
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -25,6 +29,9 @@ public class JobSchedulerEngine {
     // 记录每个任务上次执行时间，避免重复触发的简单方案（实际应使用锁）
     private final Map<Long, LocalDateTime> lastExecution = new ConcurrentHashMap<>();
 
+    /**
+     * 每 5 秒扫描一次：仅处理 FIXED_RATE 类型，按上次触发时间与间隔判断是否到期，且下发前二次确认实例在线。
+     */
     @Scheduled(fixedRate = 5000) // 每5秒扫描一次
     public void scheduleFixedRateJobs() {
         List<JobDefinition> jobs = jobDefinitionService.getEnabledJobsWithOnlineInstance();

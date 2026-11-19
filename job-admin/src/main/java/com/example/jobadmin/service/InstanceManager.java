@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 执行器实例管理：处理心跳注册，定时（30 秒超时）检测离线实例，并联动 Job 可达状态。
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -47,7 +50,10 @@ public class InstanceManager {
         }
     }
 
-    // 定时检测离线实例（30秒超时）
+    /**
+     * 每 15 秒检测一次：心跳超过 30 秒未更新的实例标记为 OFFLINE；
+     * 当某系统所有实例均离线时，将该系统下任务标记为 UNREACHABLE。
+     */
     @Scheduled(fixedRate = 15000)
     public void checkOffline() {
         LocalDateTime threshold = LocalDateTime.now().minusSeconds(30);
@@ -82,5 +88,12 @@ public class InstanceManager {
                         .eq(ExecutorInstance::getStatus, "ONLINE"));
         if (instances.isEmpty()) return null;
         return instances.get(0); // 简单取第一个
+    }
+
+    // 所有在线实例，用于汇总各执行器的运行中任务
+    public List<ExecutorInstance> listOnlineInstances() {
+        return instanceMapper.selectList(
+                new LambdaQueryWrapper<ExecutorInstance>()
+                        .eq(ExecutorInstance::getStatus, "ONLINE"));
     }
 }

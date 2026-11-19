@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/**
+ * 执行器回调入口：接收执行器定时心跳与 @Job 方法注册请求，是执行器向 Admin 上报信息的通道。
+ */
 @RestController
 @RequestMapping("/api/callback")
 @RequiredArgsConstructor

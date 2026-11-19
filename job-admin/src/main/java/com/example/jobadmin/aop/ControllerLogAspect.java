@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+/**
+ * 控制器日志切面：记录各接口的入参、出参和耗时；心跳与 Job 列表查询等高频接口不在切面范围内。
+ */
 @Slf4j
 @Aspect
 @Component

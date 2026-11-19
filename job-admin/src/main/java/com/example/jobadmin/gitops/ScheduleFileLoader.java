@@ -14,6 +14,9 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * GitOps 基线加载器：服务启动时从 YAML 基线文件读取任务调度配置并落库，标记为基线锁定。
+ */
 @Component
 @RequiredArgsConstructor
 @Slf4j

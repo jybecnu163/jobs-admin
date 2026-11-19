@@ -8,11 +8,18 @@ import com.example.jobadmin.service.JobExecutionDispatcher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 手动调度接口：下发执行/停止指令，并汇总所有在线执行器上正在运行的任务供前端展示。
+ */
 @RestController
 @RequestMapping("/api/schedule")
 @RequiredArgsConstructor
@@ -46,5 +53,19 @@ public class ScheduleController {
                 .filter(j -> j.getId().equals(jobId))
                 .findFirst().orElseThrow();
         dispatcher.stop(job);
+    }
+
+    // 汇总所有在线执行器上正在运行的任务名，供前端展示"在执行"状态
+    @GetMapping("/running")
+    public List<String> runningJobs() {
+        List<String> running = new ArrayList<>();
+        for (ExecutorInstance inst : instanceManager.listOnlineInstances()) {
+            try {
+                running.addAll(dispatcher.queryRunningJobs(inst));
+            } catch (Exception e) {
+                // 单个实例查询失败不影响整体
+            }
+        }
+        return running;
     }
 }

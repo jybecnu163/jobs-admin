@@ -14,6 +14,10 @@ import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 执行器启动时的 @Job 扫描器：发现 Spring Bean 中标记了 @Job 的方法，建立 jobName 到 Method/Bean 的映射，
+ * 并通过 REST 回调向 Admin 注册实例心跳和任务定义。
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class JobAnnotationScanner implements ApplicationListener<ApplicationReadyEvent> {

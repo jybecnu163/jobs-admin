@@ -8,7 +8,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
 
 /**
- * JobAnnotationScanner 只扫描由 Spring 管理的 Bean。如果 Demo 只是一个普通类，扫描会直接跳过
+ * 示例任务类：提供短任务和长任务两个 @Job 方法。
+ * 注意：JobAnnotationScanner 只扫描 Spring 管理的 Bean，因此该类必须标注 @Component。
  */
 @Component
 public class Demo {

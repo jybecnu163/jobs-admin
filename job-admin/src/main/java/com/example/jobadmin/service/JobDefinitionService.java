@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 任务定义服务：维护 Job 注册去重、可达状态流转（UNREACHABLE/ENABLED）与调度配置持久化。
+ */
 @Service
 @RequiredArgsConstructor
 public class JobDefinitionService {
