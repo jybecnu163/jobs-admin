@@ -43,6 +43,9 @@ public class JobAnnotationScanner implements ApplicationListener<ApplicationRead
         return ApplicationListener.super.supportsAsyncExecution();
     }
 
+    /**
+     * 扫描全部 Spring Bean 的 @Job 方法，建立 jobName→Method/Bean 映射，并回调 Admin 注册心跳与任务定义。
+     */
     public void scanAndRegister() {
         // 扫描所有 bean
         for (String beanName : applicationContext.getBeanDefinitionNames()) {

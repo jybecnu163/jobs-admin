@@ -38,7 +38,9 @@ public class CallbackController {
         jobDefinitionService.saveOrUpdate(jobDef);
     }
 
-    // Executor 执行结果上报
+    /**
+     * 接收执行结果：写入执行历史、广播 SSE 状态事件，失败时发送 Webhook 告警。
+     */
     @PostMapping("/execution-result")
     public void reportExecutionResult(@RequestBody ExecutionResultRequest request) {
         executionLogService.record(request);

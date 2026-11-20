@@ -25,6 +25,7 @@ public class JobExecutionLogService {
         JobExecutionLog log = new JobExecutionLog();
         log.setJobName(request.getJobName());
         log.setSystemCode(request.getSystemCode());
+        log.setExecutorHost(request.getExecutorHost());
         log.setStatus(request.getStatus());
         log.setStartTime(parse(request.getStartTime()));
         log.setEndTime(parse(request.getEndTime()));

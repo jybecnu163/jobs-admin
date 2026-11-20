@@ -29,6 +29,9 @@ public class ConfigSyncController {
         return jobDefinitionService.listAll();
     }
 
+    /**
+     * 配置导入：校验 X-Approval-Token 后覆盖写入任务定义，Token 不匹配直接抛异常由全局处理器转 500。
+     */
     @PostMapping("/import")
     public void importConfig(@RequestBody List<JobDefinition> jobs,
                              @RequestHeader("X-Approval-Token") String token) {

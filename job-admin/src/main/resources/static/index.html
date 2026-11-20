@@ -152,6 +152,7 @@
             <thead>
             <tr>
                 <th>任务</th>
+                <th>执行机器</th>
                 <th>结果</th>
                 <th>开始时间</th>
                 <th>结束时间</th>
@@ -162,6 +163,7 @@
             <tbody>
             <tr v-for="(log, index) in historyLogs" :key="log.id || index">
                 <td>{{ log.jobName }}</td>
+                <td>{{ log.executorHost }}</td>
                 <td>{{ log.status }}</td>
                 <td>{{ log.startTime }}</td>
                 <td>{{ log.endTime }}</td>
@@ -169,7 +171,7 @@
                 <td>{{ log.errorMessage }}</td>
             </tr>
             <tr v-if="historyLogs.length === 0">
-                <td colspan="6" class="empty">暂无执行历史</td>
+                <td colspan="7" class="empty">暂无执行历史</td>
             </tr>
             </tbody>
         </table>

@@ -36,14 +36,23 @@ public class JobLogCollector {
         log.info("已启用任务日志采集，最多保留 {} 行/任务", MAX_LINES);
     }
 
+    /**
+     * 把任务名绑定到当前线程；必须与 clearCurrentJob 成对使用，避免线程池复用导致日志串任务。
+     */
     public void setCurrentJob(String jobName) {
         currentJob.set(jobName);
     }
 
+    /**
+     * 清理当前线程的任务名绑定，应在任务 finally 块中调用。
+     */
     public void clearCurrentJob() {
         currentJob.remove();
     }
 
+    /**
+     * 把当前线程产生的一行输出追加到对应任务的环形缓冲区；超过 200 行时丢弃最早记录。
+     */
     public void append(String line) {
         String jobName = currentJob.get();
         if (jobName == null || line == null) {

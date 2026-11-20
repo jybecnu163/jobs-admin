@@ -21,6 +21,9 @@ import java.util.Arrays;
 public class OperationLogAspect {
     private final OperationLogService operationLogService;
 
+    /**
+     * 仅记录 POST/PUT/DELETE 且目标方法成功返回后的写操作；CallbackController 全部排除，失败请求不记审计。
+     */
     @Around("execution(public * com.example.jobadmin.controller..*.*(..)) " +
             "&& !execution(public * com.example.jobadmin.controller.CallbackController.*(..))")
     public Object record(ProceedingJoinPoint joinPoint) throws Throwable {

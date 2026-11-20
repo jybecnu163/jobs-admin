@@ -25,6 +25,9 @@ public class ScheduleFileLoader {
     @Value("${job.admin.baseline-file}")
     private Resource baselineFile;
 
+    /**
+     * 启动时加载 YAML 基线：任务以 jobName 去重写入并标记 isBaselineLocked，文件不存在时仅告警。
+     */
     @PostConstruct
     public void loadBaseline() {
         if (!baselineFile.exists()) {

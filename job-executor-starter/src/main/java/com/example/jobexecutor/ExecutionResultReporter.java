@@ -3,6 +3,8 @@ package com.example.jobexecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -37,6 +39,7 @@ public class ExecutionResultReporter {
             Map<String, Object> body = new HashMap<>();
             body.put("jobName", jobName);
             body.put("systemCode", properties.getSystemCode());
+            body.put("executorHost", resolveHost());
             body.put("status", status);
             body.put("startTime", startTime == null ? null : startTime.toString());
             body.put("endTime", endTime == null ? null : endTime.toString());
@@ -47,6 +50,14 @@ public class ExecutionResultReporter {
                     properties.getAdminUrl() + "/api/callback/execution-result", body, Void.class);
         } catch (Exception e) {
             log.warn("上报执行结果失败: {} - {}", jobName, e.getMessage());
+        }
+    }
+
+    private String resolveHost() {
+        try {
+            return InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            return "unknown";
         }
     }
 }

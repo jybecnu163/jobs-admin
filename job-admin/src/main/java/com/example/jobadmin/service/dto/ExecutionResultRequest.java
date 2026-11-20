@@ -9,6 +9,7 @@ import lombok.Data;
 public class ExecutionResultRequest {
     private String jobName;
     private String systemCode;
+    private String executorHost;
     private String status;
     private String startTime;
     private String endTime;

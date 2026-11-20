@@ -14,6 +14,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class JobEventBus {
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
 
+    /**
+     * 新建永不超时的 SSE 连接；完成、超时或出错时自动从连接列表移除，避免连接泄漏。
+     */
     public SseEmitter subscribe() {
         SseEmitter emitter = new SseEmitter(0L);
         emitters.add(emitter);

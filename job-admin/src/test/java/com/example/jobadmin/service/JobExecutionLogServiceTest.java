@@ -43,6 +43,7 @@ class JobExecutionLogServiceTest {
         ExecutionResultRequest request = new ExecutionResultRequest();
         request.setJobName("test.demo.longJob");
         request.setSystemCode("job-demo");
+        request.setExecutorHost("10.0.0.8");
         request.setStatus("FAILED");
         request.setStartTime("2026-11-20T10:00:00");
         request.setEndTime("2026-11-20T10:00:03");
@@ -56,6 +57,7 @@ class JobExecutionLogServiceTest {
         JobExecutionLog log = captor.getValue();
         assertEquals("test.demo.longJob", log.getJobName());
         assertEquals("job-demo", log.getSystemCode());
+        assertEquals("10.0.0.8", log.getExecutorHost());
         assertEquals("FAILED", log.getStatus());
         assertEquals(LocalDateTime.of(2026, 11, 20, 10, 0), log.getStartTime());
         assertEquals(LocalDateTime.of(2026, 11, 20, 10, 0, 3), log.getEndTime());

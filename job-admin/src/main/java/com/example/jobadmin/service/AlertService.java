@@ -18,6 +18,9 @@ public class AlertService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    /**
+     * 推送告警；webhook 未配置时静默返回，推送失败仅记录 warn，不影响主流程。
+     */
     public void send(String title, String message) {
         if (webhookUrl == null || webhookUrl.isBlank()) {
             return;

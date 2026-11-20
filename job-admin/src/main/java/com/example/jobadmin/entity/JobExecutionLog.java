@@ -17,6 +17,7 @@ public class JobExecutionLog {
     private Long id;
     private String jobName;
     private String systemCode;
+    private String executorHost;
     private String status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;

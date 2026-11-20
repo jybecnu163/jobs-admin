@@ -19,6 +19,9 @@ public class ConfigSyncService {
     private final JobDefinitionService jobDefinitionService;
     private final ConfigChangeLogMapper changeLogMapper;
 
+    /**
+     * 在同一事务内逐条写 IMPORT 审计并覆盖任务定义；approved 固定为 1，表示导入时已通过 Token 审批。
+     */
     @Transactional
     public void applyExportedPackage(List<JobDefinition> changedJobs, String operator) {
         for (JobDefinition job : changedJobs) {

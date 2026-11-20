@@ -35,6 +35,9 @@ public class ScheduleController {
     @Autowired
     private JobEventBus eventBus;
 
+    /**
+     * 手动执行：先校验任务与在线实例，再下发指令并广播 SSE 状态；失败以 400 + 错误体返回。
+     */
     @PostMapping("/execute/{jobId}")
     public ResponseEntity<?> executeJob(@PathVariable Long jobId) {
         JobDefinition job = jobDefinitionService.getById(jobId);
@@ -54,6 +57,9 @@ public class ScheduleController {
         return ResponseEntity.ok("执行指令已发送");
     }
 
+    /**
+     * 手动停止：下发中断指令后广播 SSE 状态，供页面刷新“在执行”状态。
+     */
     @PostMapping("/stop/{jobId}")
     public void stopJob(@PathVariable Long jobId) {
         JobDefinition job = jobDefinitionService.listAll().stream()
@@ -63,13 +69,17 @@ public class ScheduleController {
         eventBus.publish("job-status", job.getJobName());
     }
 
-    // SSE 订阅入口：浏览器通过 EventSource 接收任务状态变化
+    /**
+     * SSE 订阅入口：浏览器通过 EventSource 接收 job-status 事件，无需轮询任务状态。
+     */
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events() {
         return eventBus.subscribe();
     }
 
-    // 汇总所有在线执行器上正在运行的任务名，供前端展示"在执行"状态
+    /**
+     * 汇总所有在线实例的运行中任务名；单个实例查询失败时静默跳过，不影响其他实例结果。
+     */
     @GetMapping("/running")
     public List<String> runningJobs() {
         List<String> running = new ArrayList<>();
@@ -83,7 +93,9 @@ public class ScheduleController {
         return running;
     }
 
-    // 查询指定任务在在线执行器上采集的最近日志
+    /**
+     * 查询指定任务在在线执行器上采集的最近日志；任务不存在或查询失败返回 400 + 错误信息。
+     */
     @GetMapping("/logs")
     public ResponseEntity<?> logs(@RequestParam String jobName,
                                   @RequestParam(defaultValue = "200") int limit) {

@@ -18,12 +18,18 @@ import java.util.List;
 public class JobDefinitionService {
     private final JobDefinitionMapper jobMapper;
 
+    /**
+     * 系统所有实例离线时，把该系统下任务批量标记为 UNREACHABLE，使其退出调度扫描。
+     */
     public void markUnreachableBySystem(String systemCode) {
         jobMapper.update(null, new LambdaUpdateWrapper<JobDefinition>()
                 .eq(JobDefinition::getSystemCode, systemCode)
                 .set(JobDefinition::getStatus, "UNREACHABLE"));
     }
 
+    /**
+     * 实例恢复在线时仅把 UNREACHABLE 任务恢复可达性；最终 ENABLED/DISABLED 由 enabled 字段决定，保留管理员意图。
+     */
     public void markOnlineBySystem(String systemCode) {
         // 仅恢复可达性，具体状态由管理员的 enabled 意图决定
         jobMapper.update(null, new LambdaUpdateWrapper<JobDefinition>()
@@ -32,6 +38,9 @@ public class JobDefinitionService {
                 .setSql("status = CASE WHEN enabled = 1 THEN 'ENABLED' ELSE 'DISABLED' END"));
     }
 
+    /**
+     * 调度扫描入口：返回 ENABLED 且非 NONE 的任务；不在此处关联实例表，在线校验由调度引擎完成。
+     */
     public List<JobDefinition> getEnabledJobsWithOnlineInstance() {
         // 需要关联实例表？这里简化：状态为 ENABLED 的即参与调度（调度引擎会再检查实例在线）
         return jobMapper.selectList(
@@ -44,6 +53,9 @@ public class JobDefinitionService {
         return jobMapper.selectList(null);
     }
 
+    /**
+     * 按 id 或 (systemCode, jobName) 去重注册/更新任务；执行器注册未带 enabled 时保留管理员原有意图。
+     */
     public void saveOrUpdate(JobDefinition job) {
         if (null != job.getId()) {
             resolveEnabled(job, jobMapper.selectById(job.getId()));

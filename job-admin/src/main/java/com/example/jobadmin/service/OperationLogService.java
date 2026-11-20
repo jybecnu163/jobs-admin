@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
 public class OperationLogService {
     private final OperationLogMapper mapper;
 
+    /**
+     * 写入一条操作审计日志；operator 固定为 admin，params 为方法入参的字符串表示。
+     */
     public void record(String operation, String uri, String params) {
         OperationLog log = new OperationLog();
         log.setOperator("admin");

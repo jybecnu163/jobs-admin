@@ -30,6 +30,9 @@ public class HeartbeatSender {
     @Value("${server.port:8080}")
     private int serverPort;
 
+    /**
+     * 启动后按 heartbeat-interval 定时上报心跳；发送失败仅告警，Admin 侧据此判定实例在线与任务可达性。
+     */
     @PostConstruct
     public void startHeartbeat() {
         scheduler.setPoolSize(1);

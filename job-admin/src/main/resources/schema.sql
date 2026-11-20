@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS job_execution_log (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     job_name VARCHAR(200),
     system_code VARCHAR(100),
+    executor_host VARCHAR(100) COMMENT '执行机器 IP',
     status VARCHAR(20) COMMENT 'SUCCESS/FAILED/STOPPED',
     start_time DATETIME,
     end_time DATETIME,

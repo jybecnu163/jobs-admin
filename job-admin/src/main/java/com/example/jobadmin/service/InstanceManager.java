@@ -34,7 +34,9 @@ public class InstanceManager {
     private final ConcurrentHashMap<String, AtomicInteger> roundRobinCounters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> assignedCounts = new ConcurrentHashMap<>();
 
-    // 接收心跳，标记在线
+    /**
+     * 按系统+命名空间+地址 upsert 实例并刷新心跳时间；随后把该系统 UNREACHABLE 的任务按 enabled 意图恢复。
+     */
     public void heartbeat(String systemCode, String host, int port, String namespace) {
         ExecutorInstance inst = instanceMapper.selectOne(
                 new LambdaQueryWrapper<ExecutorInstance>()
@@ -146,7 +148,9 @@ public class InstanceManager {
         return inst.getHost() + ":" + inst.getPort();
     }
 
-    // 所有在线实例，用于汇总各执行器的运行中任务
+    /**
+     * 返回全部在线实例，供跨执行器汇总运行中任务与日志；不区分系统或命名空间。
+     */
     public List<ExecutorInstance> listOnlineInstances() {
         return instanceMapper.selectList(
                 new LambdaQueryWrapper<ExecutorInstance>()

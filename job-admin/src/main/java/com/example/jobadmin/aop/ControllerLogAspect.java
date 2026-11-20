@@ -22,6 +22,9 @@ public class ControllerLogAspect {
     @Autowired
     private ObjectMapper objectMapper;
 
+    /**
+     * 环绕记录请求参数、响应体与耗时；心跳与 Job 列表查询被排除以降低高频接口日志量。
+     */
     @Around("execution(public * com.example.jobadmin.controller..*.*(..)) && " +
             "(!execution(public * com.example.jobadmin.controller.CallbackController.heartbeat(..)) " +
             "&& !execution(public * com.example.jobadmin.controller.JobDefinitionController.listAll(..)))")

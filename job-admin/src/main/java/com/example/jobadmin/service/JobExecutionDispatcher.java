@@ -114,6 +114,9 @@ public class JobExecutionDispatcher {
         timer.start();
     }
 
+    /**
+     * 下发停止指令：按命名空间选在线实例，无实例直接抛错；与 execute 不同，此处不做重试。
+     */
     public void stop(JobDefinition job) {
         ExecutorInstance target = pickInstance(job);
         if (target == null) {
@@ -123,14 +126,18 @@ public class JobExecutionDispatcher {
         restTemplate.postForObject(url, entity(Map.of("jobName", job.getJobName())), String.class);
     }
 
-    // 查询指定执行器实例上仍在运行中的任务名列表
+    /**
+     * 查询指定实例上仍在运行中的任务名；单个实例查询异常由调用方决定如何降级。
+     */
     public List<String> queryRunningJobs(ExecutorInstance target) {
         String url = String.format("http://%s:%d/executor/running", target.getHost(), target.getPort());
         String[] arr = restTemplate.exchange(url, HttpMethod.GET, entity(null), String[].class).getBody();
         return arr == null ? List.of() : Arrays.asList(arr);
     }
 
-    // 查询指定任务在执行器上采集的最近日志
+    /**
+     * 按任务命名空间选实例并拉取最近日志；jobName 做 URL 编码，空响应返回空列表。
+     */
     public List<String> queryLogs(JobDefinition job, String jobName, int limit) {
         ExecutorInstance target = pickInstance(job);
         if (target == null) {

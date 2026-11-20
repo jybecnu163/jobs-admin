@@ -30,6 +30,7 @@ class FrontendConfigTest {
         assertTrue(html.contains("/execution-logs"), "应提供执行历史查询调用");
         assertTrue(html.contains("v-for=\"(log, index) in historyLogs\""), "执行历史应逐行渲染记录");
         assertTrue(html.contains("params: {jobName: job.jobName, limit: 200}"), "执行历史应按当前 Job 过滤");
+        assertTrue(html.contains("log.executorHost"), "执行历史应展示执行机器 IP");
     }
 
     @Test

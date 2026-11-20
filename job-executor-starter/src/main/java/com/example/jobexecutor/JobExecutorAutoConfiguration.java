@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>
  * 启用 @ConfigurationProperties，并将 ExecutorProperties 绑定到上下文。
  * <p>
- * 创建并暴露五个核心 Bean：
+ * 创建并暴露六个核心 Bean：
  * <p>
  * JobAnnotationScanner（扫描与注册）
  * <p>
@@ -21,6 +21,8 @@ import org.springframework.context.annotation.Configuration;
  * ExecutionResultReporter（执行结果上报）
  * <p>
  * JobLogCollector（任务日志采集）
+ * <p>
+ * ExecutorAuthFilter（/executor/** 鉴权）
  * <p>
  * JobExecutionController（接收指令）
  * <p>

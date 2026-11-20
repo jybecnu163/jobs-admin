@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS job_execution_log (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     job_name VARCHAR(200),
     system_code VARCHAR(100),
+    executor_host VARCHAR(100),
     status VARCHAR(20),
     start_time TIMESTAMP,
     end_time TIMESTAMP,

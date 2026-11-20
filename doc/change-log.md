@@ -259,3 +259,28 @@
 - 修复：`job-admin/src/main/resources/static/index.html` 改用原生 `<table>` + `v-for="(log, index) in historyLogs"` 渲染，每条记录一行；同时移除全局“执行历史”入口，仅保留每个 Job 行的“历史”按钮，查询固定携带 `jobName`。
 - 测试：`mvn test -q` → `HISTORY_UI_FIX_OK`；`FrontendConfigTest` 增加逐行渲染与按 Job 过滤断言。
 - Git：已 `git add`（未 push）。
+
+---
+
+## 任务 27 · 执行历史增加执行机器 IP
+
+- 日期：2026-11-20
+- 改动：
+  - `job-executor-starter/src/main/java/com/example/jobexecutor/ExecutionResultReporter.java`：通过 `InetAddress.getLocalHost().getHostAddress()` 获取执行器 IP，随执行结果上报 `executorHost`。
+  - `job-admin/src/main/java/com/example/jobadmin/service/dto/ExecutionResultRequest.java`、`entity/JobExecutionLog.java`、`service/JobExecutionLogService.java`：接收并落库 `executorHost`。
+  - `job-admin/src/main/resources/schema.sql`、`job-admin/src/test/resources/schema-h2.sql`：`job_execution_log` 增加 `executor_host` 列。
+  - `job-admin/src/main/resources/static/index.html`：执行历史表格增加“执行机器”列并展示 `log.executorHost`。
+  - 测试：`ExecutionResultReporterTest`、`JobExecutionLogServiceTest`、`FrontendConfigTest` 增加对应断言。
+- 测试：根工程 `mvn test -q` → `EXECUTOR_HOST_OK`（79 个用例，0 失败）。
+- 说明：现有数据库需执行 `ALTER TABLE job_execution_log ADD COLUMN executor_host VARCHAR(100) COMMENT '执行机器 IP';`；历史记录该字段为空，新执行记录开始写入。
+- Git：已 `git add`（未 push）。
+
+---
+
+## 关键类与方法注释补充
+
+- 日期：2026-11-20
+- 改动：为鉴权、告警、SSE、审计、调度状态流转、注册去重、分片/日志采集等关键方法补充 Javadoc；修正 `JobExecutorAutoConfiguration` 类注释中 Bean 数量与清单（补入 `ExecutorAuthFilter`）。
+  - 覆盖：`GlobalExceptionHandler`、`AlertService`、`JobEventBus`、`OperationLogAspect`、`OperationLogService`、`InstanceManager`、`JobDefinitionService`、`JobExecutionDispatcher`、`CallbackController`、`ConfigSyncController`、`ScheduleController`、`ControllerLogAspect`、`ScheduleFileLoader`、`ConfigSyncService`、`JobLogCollector`、`JobAnnotationScanner`、`HeartbeatSender`、`JobExecutorAutoConfiguration`。
+- 测试：`mvn test -q` → `COMMENTS_TEST_OK`（79 个用例，0 失败）；IDE lint 无错误/警告。
+- Git：已 `git add`（未 push）。

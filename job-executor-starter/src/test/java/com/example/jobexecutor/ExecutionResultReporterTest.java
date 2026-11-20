@@ -32,6 +32,7 @@ class ExecutionResultReporterTest {
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(jsonPath("$.jobName").value("test.job"))
                 .andExpect(jsonPath("$.systemCode").value("job-demo"))
+                .andExpect(jsonPath("$.executorHost").exists())
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.errorMessage").doesNotExist())
                 .andRespond(withSuccess());
