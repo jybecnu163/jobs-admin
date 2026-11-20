@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -94,8 +95,60 @@ class JobDefinitionServiceTest {
         ArgumentCaptor<LambdaUpdateWrapper<JobDefinition>> captor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
         verify(jobMapper).update(isNull(), captor.capture());
         LambdaUpdateWrapper<JobDefinition> wrapper = captor.getValue();
-        assertTrue(wrapper.getSqlSegment().contains("UNREACHABLE") || wrapper.getSqlSegment().contains("status"), wrapper.getSqlSegment());
-        assertTrue(wrapper.getSqlSet().contains("ENABLED") || wrapper.getSqlSet().contains("status"), wrapper.getSqlSet());
+        assertTrue(wrapper.getSqlSegment().contains("status"), wrapper.getSqlSegment());
+        assertTrue(wrapper.getSqlSet().contains("CASE WHEN enabled = 1"), wrapper.getSqlSet());
+    }
+
+    @Test
+    void executorRegistrationPreservesDisabledIntent() {
+        JobDefinition old = job(20L, "system-a", "job.off");
+        old.setEnabled(false);
+        when(jobMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(old);
+        JobDefinition incoming = job(null, "system-a", "job.off");
+        incoming.setStatus("ENABLED");
+
+        service.saveOrUpdate(incoming);
+
+        assertEquals(20L, incoming.getId());
+        assertFalse(incoming.getEnabled());
+        verify(jobMapper).updateById(incoming);
+    }
+
+    @Test
+    void explicitEnabledFlagIsHonored() {
+        JobDefinition incoming = job(null, "system-a", "job.new");
+        incoming.setStatus("DISABLED");
+        incoming.setEnabled(false);
+        when(jobMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
+
+        service.saveOrUpdate(incoming);
+
+        assertFalse(incoming.getEnabled());
+        verify(jobMapper).insert(incoming);
+    }
+
+    @Test
+    void newRegistrationDefaultsEnabledFromStatus() {
+        JobDefinition incoming = job(null, "system-a", "job.new");
+        incoming.setStatus("ENABLED");
+        when(jobMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
+
+        service.saveOrUpdate(incoming);
+
+        assertTrue(incoming.getEnabled());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void updateNextFireTimeSetsIdConditionAndValue() {
+        LocalDateTime next = LocalDateTime.now().plusMinutes(1);
+
+        service.updateNextFireTime(12L, next);
+
+        ArgumentCaptor<LambdaUpdateWrapper<JobDefinition>> captor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(jobMapper).update(isNull(), captor.capture());
+        assertTrue(captor.getValue().getSqlSegment().contains("id"), captor.getValue().getSqlSegment());
+        assertTrue(captor.getValue().getSqlSet().contains("next_fire_time"), captor.getValue().getSqlSet());
     }
 
     @Test

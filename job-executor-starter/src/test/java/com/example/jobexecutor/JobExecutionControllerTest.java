@@ -23,6 +23,8 @@ class JobExecutionControllerTest {
 
     private JobExecutionController controller;
     private JobAnnotationScanner scanner;
+    private ExecutionResultReporter reporter;
+    private JobLogCollector logCollector;
     private CountDownLatch blockLatch;
 
     /** 测试任务：block() 会一直阻塞，直到 latch 释放或线程被中断；quick() 立即返回。 */
@@ -43,11 +45,17 @@ class JobExecutionControllerTest {
 
         public void quick() {
         }
+
+        public void fail() {
+            throw new IllegalStateException("job failed");
+        }
     }
 
     @BeforeEach
     void setUp() {
-        controller = new JobExecutionController();
+        reporter = mock(ExecutionResultReporter.class);
+        logCollector = mock(JobLogCollector.class);
+        controller = new JobExecutionController(reporter, logCollector);
         scanner = mock(JobAnnotationScanner.class);
         blockLatch = new CountDownLatch(1);
         ReflectionTestUtils.setField(controller, "scanner", scanner);
@@ -105,6 +113,40 @@ class JobExecutionControllerTest {
         ResponseEntity<String> response = controller.execute(Map.of("jobName", "unknown"));
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertTrue(response.getBody().contains("Job not found"));
+    }
+
+    @Test
+    void successResultIsReportedAfterJobFinishes() throws Exception {
+        register("test.job", "quick");
+        controller.execute(Map.of("jobName", "test.job"));
+        awaitRunningEmpty();
+
+        verify(reporter, timeout(2000)).report(eq("test.job"), eq("SUCCESS"), any(), any(), isNull());
+    }
+
+    @Test
+    void stoppedResultIsReportedAfterCancel() throws Exception {
+        register("test.job", "block");
+        controller.execute(Map.of("jobName", "test.job"));
+        controller.stop(Map.of("jobName", "test.job"));
+
+        verify(reporter, timeout(2000)).report(eq("test.job"), eq("STOPPED"), any(), any(), any());
+    }
+
+    @Test
+    void failedResultIsReportedWithErrorMessage() throws Exception {
+        register("test.job", "fail");
+        controller.execute(Map.of("jobName", "test.job"));
+        awaitRunningEmpty();
+
+        verify(reporter, timeout(2000)).report(eq("test.job"), eq("FAILED"), any(), any(), contains("job failed"));
+    }
+
+    @Test
+    void logsEndpointReturnsCollectorResult() {
+        when(logCollector.recent("test.job", 5)).thenReturn(List.of("line-1", "line-2"));
+
+        assertEquals(List.of("line-1", "line-2"), controller.logs("test.job", 5));
     }
 
     private void awaitRunningEmpty() {

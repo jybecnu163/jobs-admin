@@ -75,6 +75,7 @@
                 <button v-if="job.status==='DISABLED'" @click="enableJob(job)">启用</button>
                 <button @click="executeJob(job)">执行</button>
                 <button v-if="job.longRunning" @click="stopJob(job)">停止</button>
+                <button @click="openLogDialog(job)">日志</button>
                 <button @click="openEditDialog(job)">调度</button>
             </td>
         </tr>
@@ -112,6 +113,11 @@
     <!--        </el-table-column>-->
     <!--    </el-table>-->
 
+    <!-- 日志对话框 -->
+    <el-dialog v-model="logDialogVisible" :title="'执行日志 - ' + logJobName" width="700px">
+        <pre style="max-height: 400px; overflow: auto; background: #f5f5f5; padding: 10px;">{{ logLines.join('\n') || '暂无日志' }}</pre>
+    </el-dialog>
+
     <!-- 编辑对话框（不变） -->
     <el-dialog v-model="editDialogVisible" title="编辑调度配置" width="500px">
         <el-form :model="editForm" label-width="100px">
@@ -146,6 +152,9 @@
             const runningJobs = ref([])
             const loading = ref(false)
             const editDialogVisible = ref(false)
+            const logDialogVisible = ref(false)
+            const logJobName = ref('')
+            const logLines = ref([])
             const editForm = reactive({id: null, jobName: '', scheduleType: 'NONE', scheduleExpr: ''})
 
             const statusType = (s) => {
@@ -186,7 +195,7 @@
 
             const enableJob = async (job) => {
                 try {
-                    await axios.put(`${API_BASE}/jobs/${job.id}`, {...job, status: 'ENABLED'})
+                    await axios.put(`${API_BASE}/jobs/${job.id}`, {...job, status: 'ENABLED', enabled: true})
                     ElementPlus.ElMessage.success('已启用')
                     loadJobs()
                 } catch (e) {
@@ -196,7 +205,7 @@
 
             const disableJob = async (job) => {
                 try {
-                    await axios.put(`${API_BASE}/jobs/${job.id}`, {...job, status: 'DISABLED'})
+                    await axios.put(`${API_BASE}/jobs/${job.id}`, {...job, status: 'DISABLED', enabled: false})
                     ElementPlus.ElMessage.success('已禁用')
                     loadJobs()
                 } catch (e) {
@@ -219,6 +228,20 @@
                     ElementPlus.ElMessage.success('停止指令已发送')
                 } catch (e) {
                     ElementPlus.ElMessage.error('停止失败')
+                }
+            }
+
+            const openLogDialog = async (job) => {
+                logJobName.value = job.jobName
+                logLines.value = []
+                logDialogVisible.value = true
+                try {
+                    const r = await axios.get(`${API_BASE}/schedule/logs`, {
+                        params: {jobName: job.jobName, limit: 200}
+                    })
+                    logLines.value = r.data || []
+                } catch (e) {
+                    ElementPlus.ElMessage.error(e.response?.data || '加载日志失败')
                 }
             }
 
@@ -262,6 +285,10 @@
                 jobs,
                 loading,
                 editDialogVisible,
+                logDialogVisible,
+                logJobName,
+                logLines,
+                openLogDialog,
                 statusType,
                 statusText,
                 loadJobs,

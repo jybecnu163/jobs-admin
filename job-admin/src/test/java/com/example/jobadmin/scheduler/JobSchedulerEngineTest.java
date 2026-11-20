@@ -5,22 +5,25 @@ import com.example.jobadmin.entity.JobDefinition;
 import com.example.jobadmin.service.JobDefinitionService;
 import com.example.jobadmin.service.JobExecutionDispatcher;
 import com.example.jobadmin.service.InstanceManager;
+import com.example.jobadmin.service.SchedulerLockService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * 调度引擎单元测试：覆盖 FIXED_RATE 触发周期、防重复触发、实例在线校验与失败不记录触发时间等行为。
+ * 调度引擎单元测试：覆盖数据库锁获取、FIXED_RATE/CRON 触发判断、实例在线校验与失败处理。
  */
 @ExtendWith(MockitoExtension.class)
 class JobSchedulerEngineTest {
@@ -31,8 +34,15 @@ class JobSchedulerEngineTest {
     private JobExecutionDispatcher dispatcher;
     @Mock
     private InstanceManager instanceManager;
+    @Mock
+    private SchedulerLockService lockService;
     @InjectMocks
     private JobSchedulerEngine engine;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(lockService.tryAcquire(anyString(), any(Duration.class))).thenReturn(true);
+    }
 
     private static JobDefinition job(long id, String type, String expr) {
         JobDefinition job = new JobDefinition();
@@ -48,77 +58,147 @@ class JobSchedulerEngineTest {
         when(instanceManager.pickOnlineInstance("system-a")).thenReturn(new ExecutorInstance());
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<Long, LocalDateTime> lastExecution() {
-        return (Map<Long, LocalDateTime>) ReflectionTestUtils.getField(engine, "lastExecution");
-    }
-
     @Test
-    void fixedRateJobIsTriggeredOnceUntilIntervalElapses() {
+    void fixedRateJobTriggersWhenLockAcquired() {
         JobDefinition job = job(1L, "FIXED_RATE", "60000");
         when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
         online();
 
         engine.scheduleFixedRateJobs();
-        engine.scheduleFixedRateJobs();
+
+        verify(lockService).tryAcquire("job-scheduler:job-1", Duration.ofMillis(60000));
         verify(dispatcher, times(1)).execute(job);
-        assertNotNull(lastExecution().get(1L));
+        verify(jobDefinitionService).updateNextFireTime(eq(1L), any(LocalDateTime.class));
     }
 
     @Test
-    void fixedRateJobTriggersAgainAfterInterval() {
+    void fixedRateJobSkippedWhenLockNotAcquired() {
         JobDefinition job = job(2L, "FIXED_RATE", "1000");
         when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
-        online();
-        lastExecution().put(2L, LocalDateTime.now().minusSeconds(2));
+        when(lockService.tryAcquire(anyString(), any(Duration.class))).thenReturn(false);
 
         engine.scheduleFixedRateJobs();
-        verify(dispatcher, times(1)).execute(job);
+        verifyNoInteractions(dispatcher);
+        verify(jobDefinitionService, never()).updateNextFireTime(anyLong(), any());
+    }
+
+    @Test
+    void fixedRateJobTriggersAgainAfterLockExpires() {
+        JobDefinition job = job(3L, "FIXED_RATE", "1000");
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
+        online();
+
+        engine.scheduleFixedRateJobs();
+        engine.scheduleFixedRateJobs();
+
+        verify(dispatcher, times(2)).execute(job);
     }
 
     @Test
     void jobIsNotTriggeredWithoutOnlineInstance() {
-        JobDefinition job = job(3L, "FIXED_RATE", "1000");
+        JobDefinition job = job(4L, "FIXED_RATE", "1000");
         when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
         when(instanceManager.pickOnlineInstance("system-a")).thenReturn(null);
 
         engine.scheduleFixedRateJobs();
-        verify(dispatcher, never()).execute(any());
-        assertNull(lastExecution().get(3L));
+        verifyNoInteractions(dispatcher);
+        verify(jobDefinitionService, never()).updateNextFireTime(anyLong(), any());
     }
 
     @Test
-    void dispatchFailureDoesNotRecordTriggerTime() {
-        JobDefinition job = job(4L, "FIXED_RATE", "1000");
+    void dispatchFailureDoesNotAdvanceNextFireTime() {
+        JobDefinition job = job(5L, "FIXED_RATE", "1000");
         when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
         online();
         doThrow(new RuntimeException("下发失败")).when(dispatcher).execute(job);
 
         engine.scheduleFixedRateJobs();
         engine.scheduleFixedRateJobs();
+
         verify(dispatcher, times(2)).execute(job);
-        assertNull(lastExecution().get(4L));
+        verify(jobDefinitionService, never()).updateNextFireTime(anyLong(), any());
     }
 
     @Test
-    void nonFixedRateJobsAreIgnored() {
-        JobDefinition manual = job(5L, "NONE", "");
-        JobDefinition cron = job(6L, "CRON", "0 0 * * * ?");
-        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(manual, cron));
+    void manualJobsAreIgnored() {
+        JobDefinition manual = job(6L, "NONE", "");
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(manual));
 
         engine.scheduleFixedRateJobs();
         verifyNoInteractions(dispatcher);
+        verifyNoInteractions(lockService);
     }
 
     @Test
-    void reloadAllClearsTriggerHistory() {
-        JobDefinition job = job(7L, "FIXED_RATE", "60000");
+    void cronJobInitializesNextFireTimeWithoutTriggering() {
+        JobDefinition job = job(7L, "CRON", "0 0 * * * ?");
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
+
+        engine.scheduleFixedRateJobs();
+        ArgumentCaptor<LocalDateTime> captor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(jobDefinitionService).updateNextFireTime(eq(7L), captor.capture());
+        assertTrue(captor.getValue().isAfter(LocalDateTime.now()));
+        verifyNoInteractions(dispatcher);
+        verifyNoInteractions(lockService);
+    }
+
+    @Test
+    void cronJobIsNotTriggeredBeforeNextFireTime() {
+        JobDefinition job = job(8L, "CRON", "0 0 * * * ?");
+        job.setNextFireTime(LocalDateTime.now().plusMinutes(1));
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
+
+        engine.scheduleFixedRateJobs();
+        verifyNoInteractions(dispatcher);
+        verifyNoInteractions(lockService);
+    }
+
+    @Test
+    void cronJobIsTriggeredWhenDueAndNextFireTimeAdvanced() {
+        JobDefinition job = job(9L, "CRON", "0 0 * * * ?");
+        job.setNextFireTime(LocalDateTime.now().minusMinutes(1));
         when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
         online();
 
         engine.scheduleFixedRateJobs();
+        verify(lockService).tryAcquire(eq("job-scheduler:job-9"), any(Duration.class));
+        verify(dispatcher, times(1)).execute(job);
+        ArgumentCaptor<LocalDateTime> captor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(jobDefinitionService).updateNextFireTime(eq(9L), captor.capture());
+        assertTrue(captor.getValue().isAfter(LocalDateTime.now()));
+    }
+
+    @Test
+    void cronJobSkippedWhenLockNotAcquired() {
+        JobDefinition job = job(10L, "CRON", "0 0 * * * ?");
+        job.setNextFireTime(LocalDateTime.now().minusMinutes(1));
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
+        when(lockService.tryAcquire(anyString(), any(Duration.class))).thenReturn(false);
+
+        engine.scheduleFixedRateJobs();
+        verifyNoInteractions(dispatcher);
+        verify(jobDefinitionService, never()).updateNextFireTime(anyLong(), any());
+    }
+
+    @Test
+    void invalidCronExpressionIsIgnored() {
+        JobDefinition job = job(11L, "CRON", "not-a-cron");
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
+
+        engine.scheduleFixedRateJobs();
+        verifyNoInteractions(dispatcher);
+        verifyNoInteractions(lockService);
+    }
+
+    @Test
+    void reloadAllDoesNotAffectDbLock() {
+        JobDefinition job = job(12L, "FIXED_RATE", "60000");
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance()).thenReturn(List.of(job));
+        online();
+
         engine.reloadAll();
         engine.scheduleFixedRateJobs();
-        verify(dispatcher, times(2)).execute(job);
+
+        verify(dispatcher, times(1)).execute(job);
     }
 }

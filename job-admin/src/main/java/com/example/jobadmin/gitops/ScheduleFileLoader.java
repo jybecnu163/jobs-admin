@@ -45,6 +45,7 @@ public class ScheduleFileLoader {
                     job.setLongRunning(Boolean.TRUE.equals(entry.get("longRunning")));
                     job.setDescription((String) entry.get("description"));
                     job.setStatus(Boolean.TRUE.equals(entry.get("enabled")) ? "ENABLED" : "DISABLED");
+                    job.setEnabled(Boolean.TRUE.equals(entry.get("enabled")));
                     job.setIsBaselineLocked(true);
                     jobDefinitionService.saveOrUpdate(job);
                     log.info("基线加载 Job: {}", job.getJobName());

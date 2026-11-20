@@ -24,7 +24,7 @@ public class ControllerLogAspect {
 
     @Around("execution(public * com.example.jobadmin.controller..*.*(..)) && " +
             "(!execution(public * com.example.jobadmin.controller.CallbackController.heartbeat(..)) " +
-            "|| !execution(public * com.example.jobadmin.controller.JobDefinitionController.listAll(..)))")
+            "&& !execution(public * com.example.jobadmin.controller.JobDefinitionController.listAll(..)))")
     public Object logInputOutput(ProceedingJoinPoint joinPoint) throws Throwable {
         // 获取请求信息
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();

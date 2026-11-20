@@ -7,13 +7,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 作用：
@@ -34,8 +37,15 @@ public class JobExecutionController {
     @Autowired
     private JobAnnotationScanner scanner;
 
+    private final ExecutionResultReporter reporter;
+    private final JobLogCollector logCollector;
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
     private final Map<String, Future<?>> runningTasks = new ConcurrentHashMap<>();
+
+    public JobExecutionController(ExecutionResultReporter reporter, JobLogCollector logCollector) {
+        this.reporter = reporter;
+        this.logCollector = logCollector;
+    }
 
     /**
      * 执行任务：同名任务仍在运行时返回 409 拒绝提交，避免旧 Future 被覆盖后无法停止。
@@ -49,14 +59,45 @@ public class JobExecutionController {
             return ResponseEntity.badRequest().body("Job not found: " + jobName);
         }
         // 先创建任务，再通过 putIfAbsent 原子地登记，避免并发提交绕过重复检查
+        AtomicReference<LocalDateTime> startedAt = new AtomicReference<>();
+        AtomicReference<LocalDateTime> finishedAt = new AtomicReference<>();
+        AtomicReference<String> errorMessage = new AtomicReference<>();
         FutureTask<Void> task = new FutureTask<>(() -> {
+            startedAt.set(LocalDateTime.now());
+            logCollector.setCurrentJob(jobName);
             try {
                 method.invoke(bean);
             } catch (Exception e) {
+                Throwable root = e;
+                while (root.getCause() != null) {
+                    root = root.getCause();
+                }
+                errorMessage.set(root.toString());
                 throw new RuntimeException(e);
+            } finally {
+                finishedAt.set(LocalDateTime.now());
+                logCollector.clearCurrentJob();
             }
             return null;
-        });
+        }) {
+            @Override
+            protected void done() {
+                String status = "SUCCESS";
+                if (isCancelled()) {
+                    status = "STOPPED";
+                } else {
+                    try {
+                        get();
+                    } catch (ExecutionException e) {
+                        status = "FAILED";
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        status = "FAILED";
+                    }
+                }
+                reporter.report(jobName, status, startedAt.get(), finishedAt.get(), errorMessage.get());
+            }
+        };
         while (true) {
             Future<?> prev = runningTasks.putIfAbsent(jobName, task);
             if (prev == null) {
@@ -101,5 +142,14 @@ public class JobExecutionController {
             }
         });
         return running;
+    }
+
+    /**
+     * 返回指定任务最近采集的日志行。
+     */
+    @GetMapping("/logs")
+    public List<String> logs(@RequestParam String jobName,
+                             @RequestParam(defaultValue = "200") int limit) {
+        return logCollector.recent(jobName, limit);
     }
 }

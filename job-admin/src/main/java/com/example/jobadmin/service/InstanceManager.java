@@ -5,11 +5,14 @@ import com.example.jobadmin.entity.ExecutorInstance;
 import com.example.jobadmin.mapper.ExecutorInstanceMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 执行器实例管理：处理心跳注册，定时（30 秒超时）检测离线实例，并联动 Job 可达状态。
@@ -20,6 +23,12 @@ import java.util.List;
 public class InstanceManager {
     private final ExecutorInstanceMapper instanceMapper;
     private final JobDefinitionService jobDefinitionService;
+
+    @Value("${job.admin.instance-select-strategy:FIRST}")
+    private InstanceSelectStrategy strategy = InstanceSelectStrategy.FIRST;
+
+    private final ConcurrentHashMap<String, AtomicInteger> roundRobinCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AtomicInteger> assignedCounts = new ConcurrentHashMap<>();
 
     // 接收心跳，标记在线
     public void heartbeat(String systemCode, String host, int port) {
@@ -80,14 +89,44 @@ public class InstanceManager {
         return onlineCount == 0;
     }
 
-    // 选择一个在线实例（简单轮询可后续扩展）
+    /**
+     * 根据配置的策略选择一个在线实例：FIRST 取第一个，ROUND_ROBIN 按系统轮询，LEAST_LOAD 取累计分配最少者。
+     */
     public ExecutorInstance pickOnlineInstance(String systemCode) {
-        List<ExecutorInstance> instances = instanceMapper.selectList(
+        List<ExecutorInstance> instances = queryOnlineInstances(systemCode);
+        if (instances.isEmpty()) return null;
+        switch (strategy) {
+            case ROUND_ROBIN:
+                AtomicInteger counter = roundRobinCounters.computeIfAbsent(systemCode, k -> new AtomicInteger());
+                int index = Math.floorMod(counter.getAndIncrement(), instances.size());
+                return instances.get(index);
+            case LEAST_LOAD:
+                ExecutorInstance chosen = instances.get(0);
+                long min = Long.MAX_VALUE;
+                for (ExecutorInstance inst : instances) {
+                    int count = assignedCounts.computeIfAbsent(instanceKey(inst), k -> new AtomicInteger()).get();
+                    if (count < min) {
+                        min = count;
+                        chosen = inst;
+                    }
+                }
+                assignedCounts.computeIfAbsent(instanceKey(chosen), k -> new AtomicInteger()).incrementAndGet();
+                return chosen;
+            case FIRST:
+            default:
+                return instances.get(0);
+        }
+    }
+
+    private List<ExecutorInstance> queryOnlineInstances(String systemCode) {
+        return instanceMapper.selectList(
                 new LambdaQueryWrapper<ExecutorInstance>()
                         .eq(ExecutorInstance::getSystemCode, systemCode)
                         .eq(ExecutorInstance::getStatus, "ONLINE"));
-        if (instances.isEmpty()) return null;
-        return instances.get(0); // 简单取第一个
+    }
+
+    private String instanceKey(ExecutorInstance inst) {
+        return inst.getHost() + ":" + inst.getPort();
     }
 
     // 所有在线实例，用于汇总各执行器的运行中任务

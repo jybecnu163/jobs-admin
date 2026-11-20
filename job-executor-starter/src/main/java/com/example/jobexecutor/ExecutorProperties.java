@@ -19,4 +19,6 @@ public class ExecutorProperties {
      */
     private String systemCode;
     private int heartbeatInterval = 10;
+    private boolean resultCallbackEnabled = true;
+    private boolean logCaptureEnabled = true;
 }

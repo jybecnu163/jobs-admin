@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
@@ -67,5 +68,22 @@ public class ScheduleController {
             }
         }
         return running;
+    }
+
+    // 查询指定任务在在线执行器上采集的最近日志
+    @GetMapping("/logs")
+    public ResponseEntity<?> logs(@RequestParam String jobName,
+                                  @RequestParam(defaultValue = "200") int limit) {
+        JobDefinition job = jobDefinitionService.listAll().stream()
+                .filter(j -> jobName.equals(j.getJobName()))
+                .findFirst().orElse(null);
+        if (job == null) {
+            return ResponseEntity.badRequest().body("Job not found: " + jobName);
+        }
+        try {
+            return ResponseEntity.ok(dispatcher.queryLogs(job, jobName, limit));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

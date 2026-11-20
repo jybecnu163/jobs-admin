@@ -66,10 +66,12 @@ class ScheduleFileLoaderTest {
         assertEquals("long running demo", enabled.getDescription());
         assertTrue(enabled.getLongRunning());
         assertEquals("ENABLED", enabled.getStatus());
+        assertTrue(enabled.getEnabled());
         assertTrue(enabled.getIsBaselineLocked());
 
         JobDefinition disabled = jobs.get(1);
         assertEquals("DISABLED", disabled.getStatus());
+        assertFalse(disabled.getEnabled());
         assertFalse(disabled.getLongRunning());
         assertTrue(disabled.getIsBaselineLocked());
     }

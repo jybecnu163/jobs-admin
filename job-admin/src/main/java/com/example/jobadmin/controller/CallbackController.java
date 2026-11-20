@@ -3,6 +3,8 @@ package com.example.jobadmin.controller;
 import com.example.jobadmin.service.InstanceManager;
 import com.example.jobadmin.entity.JobDefinition;
 import com.example.jobadmin.service.JobDefinitionService;
+import com.example.jobadmin.service.JobExecutionLogService;
+import com.example.jobadmin.service.dto.ExecutionResultRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +19,7 @@ import java.util.Map;
 public class CallbackController {
     private final InstanceManager instanceManager;
     private final JobDefinitionService jobDefinitionService;
+    private final JobExecutionLogService executionLogService;
 
     // Executor 心跳
     @PostMapping("/heartbeat")
@@ -28,5 +31,11 @@ public class CallbackController {
     @PostMapping("/register-job")
     public void registerJob(@RequestBody JobDefinition jobDef) {
         jobDefinitionService.saveOrUpdate(jobDef);
+    }
+
+    // Executor 执行结果上报
+    @PostMapping("/execution-result")
+    public void reportExecutionResult(@RequestBody ExecutionResultRequest request) {
+        executionLogService.record(request);
     }
 }

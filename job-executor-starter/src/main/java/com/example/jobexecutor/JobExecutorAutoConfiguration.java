@@ -12,11 +12,15 @@ import org.springframework.context.annotation.Configuration;
  * <p>
  * 启用 @ConfigurationProperties，并将 ExecutorProperties 绑定到上下文。
  * <p>
- * 创建并暴露三个核心 Bean：
+ * 创建并暴露五个核心 Bean：
  * <p>
  * JobAnnotationScanner（扫描与注册）
  * <p>
  * HeartbeatSender（心跳发送）
+ * <p>
+ * ExecutionResultReporter（执行结果上报）
+ * <p>
+ * JobLogCollector（任务日志采集）
  * <p>
  * JobExecutionController（接收指令）
  * <p>
@@ -36,7 +40,18 @@ public class JobExecutorAutoConfiguration {
     }
 
     @Bean
-    public JobExecutionController jobExecutionController() {
-        return new JobExecutionController();
+    public ExecutionResultReporter executionResultReporter(ExecutorProperties properties) {
+        return new ExecutionResultReporter(properties);
+    }
+
+    @Bean
+    public JobLogCollector jobLogCollector(ExecutorProperties properties) {
+        return new JobLogCollector(properties);
+    }
+
+    @Bean
+    public JobExecutionController jobExecutionController(ExecutionResultReporter reporter,
+                                                         JobLogCollector logCollector) {
+        return new JobExecutionController(reporter, logCollector);
     }
 }
