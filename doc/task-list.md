@@ -156,3 +156,12 @@
   - 目标：将 10 秒 HTTP 轮询心跳改为长连接或 gRPC 流式心跳，降低延迟与连接开销。
   - 证据：`job-executor-starter/src/main/java/com/example/jobexecutor/HeartbeatSender.java:33-48`。
   - 验收：实例离线感知时间从 30 秒级缩短到秒级。
+
+---
+
+## 追加任务
+
+- [x] **26. 执行历史记录与页面展示**
+  - 目标：提供执行历史查询接口，并在管理页全局/按任务展示执行结果、起止时间、耗时与异常信息。
+  - 证据：`job-admin/src/main/java/com/example/jobadmin/service/JobExecutionLogService.java`；`job-admin/src/main/java/com/example/jobadmin/controller/ExecutionLogController.java`；`job-admin/src/main/resources/static/index.html`。
+  - 验收：`GET /api/execution-logs` 可按 `jobName` 过滤并按开始时间倒序返回；页面可打开执行历史弹窗并展示记录；单测与前端回归测试通过。

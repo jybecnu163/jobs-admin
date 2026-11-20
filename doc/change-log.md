@@ -236,3 +236,26 @@
 - 改动：Admin 离线阈值改为配置 `job.admin.offline-threshold`；示例业务系统配置 `namespace=default`、`heartbeat-interval=5` 秒；心跳携带命名空间；实例离线按可配置阈值触发告警与状态流转；新增离线阈值测试。
 - 测试：根工程 `mvn test -q` → `BATCH4_TEST_OK`（58 个用例，0 失败）。
 - Git：已 `git add`（未 push）。
+
+---
+
+## 任务 26 · 执行历史记录与页面展示
+
+- 日期：2026-11-20
+- 改动：
+  - `job-admin/src/main/java/com/example/jobadmin/service/JobExecutionLogService.java`：新增 `recent(jobName, limit)`，按任务名过滤、按开始时间倒序，`limit` 限制 1–500。
+  - `job-admin/src/main/java/com/example/jobadmin/controller/ExecutionLogController.java`：新增 `GET /api/execution-logs`（可选 `jobName`，默认 `limit=100`）。
+  - `job-admin/src/main/resources/static/index.html`：每行增加“历史”按钮；新增执行历史弹窗，展示任务名、结果、起止时间、耗时和异常信息。
+  - 测试：`JobExecutionLogServiceTest` 新增查询测试；新增 `ExecutionLogControllerTest`；`FrontendConfigTest` 增加 `/execution-logs` 断言。
+- 测试：根工程 `mvn test -q` → `HISTORY_TEST_OK`（全部 79 个用例，0 失败）。
+- 说明：执行历史数据来自任务 6 建立的 `job_execution_log` 表，本次只新增查询与页面展示，不改变上报链路。
+- Git：已 `git add`（未 push）。
+
+### 任务 26 后续修复 · 执行历史页面不显示数据
+
+- 日期：2026-11-20
+- 问题：后端 `/api/execution-logs` 有数据，但弹窗中 `el-table` 不显示记录。
+- 原因：在 in-DOM 模板中使用了自闭合的 `<el-table-column ... />`，HTML 解析器不会正确闭合自定义元素，导致表格列结构被破坏。
+- 修复：`job-admin/src/main/resources/static/index.html` 改用原生 `<table>` + `v-for="(log, index) in historyLogs"` 渲染，每条记录一行；同时移除全局“执行历史”入口，仅保留每个 Job 行的“历史”按钮，查询固定携带 `jobName`。
+- 测试：`mvn test -q` → `HISTORY_UI_FIX_OK`；`FrontendConfigTest` 增加逐行渲染与按 Job 过滤断言。
+- Git：已 `git add`（未 push）。

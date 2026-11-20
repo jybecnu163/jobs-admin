@@ -63,7 +63,7 @@ jobs-admin/
 - **零侵入接入**：业务系统引入 Starter，在 Spring Bean 方法上标注 `@Job`，启动后自动向 Admin 注册。
 - **双模调度**：`FIXED_RATE` 按毫秒间隔触发；`CRON` 使用 `CronExpression` 计算并把 `next_fire_time` 持久化到数据库。
 - **多实例防重**：`job_scheduler_lock` 表实现数据库锁，锁 TTL 限制在 5–30 秒。
-- **执行闭环**：执行结果由 Executor 回调 Admin 落入 `job_execution_log`；失败触发 Webhook 告警。
+- **执行闭环**：执行结果由 Executor 回调 Admin 落入 `job_execution_log`；失败触发 Webhook 告警；页面可查询执行历史。
 - **可观测性**：在线日志查看（每任务内存保留最近 200 行）、SSE 实时状态推送、Controller 访问日志、写操作审计日志。
 - **可靠性**：失败重试（`retryCount`/`retryIntervalMs`）、超时自动停止（`timeoutMs`）、重复执行保护（409）、长任务中断停止。
 - **隔离与编排**：命名空间隔离（`namespace`）、分片参数（`shardIndex`/`shardTotal`）、DAG 依赖（`dependsOn`）。
@@ -86,7 +86,7 @@ cd jobs-admin
 mvn clean test
 ```
 
-`job-admin`、`job-executor-starter`、`job-demo` 均已纳入父工程 reactor，当前约 76 个测试用例会一并运行。
+`job-admin`、`job-executor-starter`、`job-demo` 均已纳入父工程 reactor，当前 79 个测试用例会一并运行。
 
 ### 2. 初始化数据库
 
@@ -197,6 +197,7 @@ public class OrderCleanTask {
 | `/api/schedule/running`          | GET       | 在线执行器上仍在运行的任务名              |
 | `/api/schedule/events`           | GET (SSE) | 推送任务状态事件                    |
 | `/api/schedule/logs`             | GET       | 查询任务在线日志（`jobName`、`limit`） |
+| `/api/execution-logs`            | GET       | 查询执行历史（`jobName` 可选、`limit` 默认 100） |
 | `/api/callback/heartbeat`        | POST      | Executor 心跳（含 `namespace`）  |
 | `/api/callback/register-job`     | POST      | Executor 注册 Job             |
 | `/api/callback/execution-result` | POST      | Executor 回传执行结果             |
@@ -217,6 +218,7 @@ public class OrderCleanTask {
 | 执行    | 手动触发；运行中再次触发返回“任务已在执行，提交失败”           |
 | 停止    | 中断正在运行的长任务，任务代码需响应中断                  |
 | 日志    | 查看执行器最近 200 行任务日志                     |
+| 执行历史 | 点击任务的“历史”按钮，查看该 Job 的执行结果、起止时间、耗时与异常信息 |
 | 调度配置  | 修改 CRON / FIXED_RATE，保存后立即生效          |
 | 配置管理  | 导入/导出任务配置，导入需审批 Token                 |
 | 状态推送  | 通过 SSE 接收任务状态事件，无需依赖纯轮询               |
@@ -224,7 +226,7 @@ public class OrderCleanTask {
 ## 测试与质量
 
 ```bash
-mvn test          # 全部模块，约 76 个用例
+mvn test          # 全部模块，79 个用例
 mvn verify        # 含 H2 集成测试与 Maven 插件校验
 ```
 

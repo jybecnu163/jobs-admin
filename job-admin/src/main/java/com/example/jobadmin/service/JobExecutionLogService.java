@@ -1,5 +1,6 @@
 package com.example.jobadmin.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.jobadmin.entity.JobExecutionLog;
 import com.example.jobadmin.mapper.JobExecutionLogMapper;
 import com.example.jobadmin.service.dto.ExecutionResultRequest;
@@ -7,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 任务执行记录服务：把执行器上报的结果落库，供后续日志查询与告警使用。
@@ -29,6 +31,17 @@ public class JobExecutionLogService {
         log.setDurationMs(request.getDurationMs());
         log.setErrorMessage(request.getErrorMessage());
         logMapper.insert(log);
+    }
+
+    /**
+     * 查询最近执行记录；jobName 为空时返回全部任务，limit 限制在 1–500。
+     */
+    public List<JobExecutionLog> recent(String jobName, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 500));
+        return logMapper.selectList(new LambdaQueryWrapper<JobExecutionLog>()
+                .eq(jobName != null && !jobName.isBlank(), JobExecutionLog::getJobName, jobName)
+                .orderByDesc(JobExecutionLog::getStartTime)
+                .last("limit " + safeLimit));
     }
 
     private LocalDateTime parse(String value) {
