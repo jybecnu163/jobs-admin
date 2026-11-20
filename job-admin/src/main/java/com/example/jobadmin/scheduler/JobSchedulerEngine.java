@@ -14,6 +14,10 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 调度引擎：每 5 秒扫描启用的任务，支持 FIXED_RATE 与 CRON 两种调度类型。
@@ -30,6 +34,7 @@ public class JobSchedulerEngine {
     private final JobExecutionDispatcher dispatcher;
     private final InstanceManager instanceManager;
     private final SchedulerLockService lockService;
+    private final Map<Long, LocalDateTime> triggeredAt = new ConcurrentHashMap<>();
 
     /**
      * 每 5 秒扫描一次：FIXED_RATE 按间隔判断，CRON 按持久化的下次触发时间判断；
@@ -38,8 +43,13 @@ public class JobSchedulerEngine {
     @Scheduled(fixedRate = 5000) // 每5秒扫描一次
     public void scheduleFixedRateJobs() {
         List<JobDefinition> jobs = jobDefinitionService.getEnabledJobsWithOnlineInstance();
+        Map<String, JobDefinition> byName = jobs.stream()
+                .collect(Collectors.toMap(JobDefinition::getJobName, Function.identity(), (a, b) -> a));
         LocalDateTime now = LocalDateTime.now();
         for (JobDefinition job : jobs) {
+            if (!dependencySatisfied(job, byName)) {
+                continue;
+            }
             if ("FIXED_RATE".equals(job.getScheduleType())) {
                 scheduleFixedRate(job, now);
             } else if ("CRON".equals(job.getScheduleType())) {
@@ -62,6 +72,7 @@ public class JobSchedulerEngine {
         }
         try {
             dispatcher.execute(job);
+            triggeredAt.put(job.getId(), now);
             jobDefinitionService.updateNextFireTime(job.getId(), now.plus(Duration.ofMillis(rateMillis)));
             log.debug("触发 FIXED_RATE 任务: {}", job.getJobName());
         } catch (Exception e) {
@@ -98,6 +109,7 @@ public class JobSchedulerEngine {
         }
         try {
             dispatcher.execute(job);
+            triggeredAt.put(job.getId(), now);
             if (next != null) {
                 jobDefinitionService.updateNextFireTime(job.getId(), next);
                 job.setNextFireTime(next);
@@ -121,6 +133,17 @@ public class JobSchedulerEngine {
             next = candidate;
         }
         return next;
+    }
+
+    /**
+     * 依赖任务必须在本次扫描列表中且本 Admin 实例已触发过；未配置依赖则总是满足。
+     */
+    private boolean dependencySatisfied(JobDefinition job, Map<String, JobDefinition> byName) {
+        if (job.getDependsOn() == null || job.getDependsOn().isBlank()) {
+            return true;
+        }
+        JobDefinition dependency = byName.get(job.getDependsOn());
+        return dependency != null && triggeredAt.containsKey(dependency.getId());
     }
 
     private Duration clampTtl(Duration interval) {

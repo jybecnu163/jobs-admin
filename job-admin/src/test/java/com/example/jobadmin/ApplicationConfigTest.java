@@ -20,6 +20,6 @@ class ApplicationConfigTest {
             assertNotNull(in, "application.yml 应存在于测试类路径");
             yaml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
-        assertTrue(yaml.contains("jdbc:mysql://localhost:3306/job_admin"), yaml);
+        assertTrue(yaml.contains("jdbc:mysql://localhost:3306/test"), yaml);
     }
 }

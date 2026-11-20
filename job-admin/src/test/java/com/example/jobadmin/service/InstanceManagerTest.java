@@ -15,11 +15,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * 实例管理单元测试：覆盖三种实例选择策略与无在线实例的边界。
@@ -31,6 +32,8 @@ class InstanceManagerTest {
     private ExecutorInstanceMapper instanceMapper;
     @Mock
     private JobDefinitionService jobDefinitionService;
+    @Mock
+    private AlertService alertService;
     @InjectMocks
     private InstanceManager manager;
 
@@ -86,6 +89,23 @@ class InstanceManagerTest {
         assertSame(first, manager.pickOnlineInstance("job-demo"));
         assertSame(second, manager.pickOnlineInstance("job-demo"));
         assertSame(first, manager.pickOnlineInstance("job-demo"));
+    }
+
+    @Test
+    void checkOfflineUsesConfiguredThreshold() {
+        ReflectionTestUtils.setField(manager, "offlineThresholdSeconds", 1);
+        ExecutorInstance stale = instance("10.0.0.1", 8082);
+        stale.setId(1L);
+        stale.setSystemCode("job-demo");
+        stale.setLastHeartbeat(LocalDateTime.now().minusSeconds(5));
+        when(instanceMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(stale));
+        when(instanceMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+
+        manager.checkOffline();
+
+        assertEquals("OFFLINE", stale.getStatus());
+        verify(jobDefinitionService).markUnreachableBySystem("job-demo");
+        verify(alertService).send(eq("执行器实例离线"), anyString());
     }
 
     @Test

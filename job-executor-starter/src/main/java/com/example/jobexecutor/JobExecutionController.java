@@ -58,6 +58,8 @@ public class JobExecutionController {
         if (method == null || bean == null) {
             return ResponseEntity.badRequest().body("Job not found: " + jobName);
         }
+        int shardIndex = request.get("shardIndex") == null ? 0 : Integer.parseInt(request.get("shardIndex"));
+        int shardTotal = request.get("shardTotal") == null ? 1 : Integer.parseInt(request.get("shardTotal"));
         // 先创建任务，再通过 putIfAbsent 原子地登记，避免并发提交绕过重复检查
         AtomicReference<LocalDateTime> startedAt = new AtomicReference<>();
         AtomicReference<LocalDateTime> finishedAt = new AtomicReference<>();
@@ -66,7 +68,7 @@ public class JobExecutionController {
             startedAt.set(LocalDateTime.now());
             logCollector.setCurrentJob(jobName);
             try {
-                method.invoke(bean);
+                invoke(method, bean, shardIndex, shardTotal);
             } catch (Exception e) {
                 Throwable root = e;
                 while (root.getCause() != null) {
@@ -112,6 +114,15 @@ public class JobExecutionController {
         }
         threadPool.execute(task);
         return ResponseEntity.ok("executed");
+    }
+
+    private void invoke(Method method, Object bean, int shardIndex, int shardTotal) throws Exception {
+        Class<?>[] types = method.getParameterTypes();
+        if (types.length == 2 && types[0] == int.class && types[1] == int.class) {
+            method.invoke(bean, shardIndex, shardTotal);
+        } else {
+            method.invoke(bean);
+        }
     }
 
     /**

@@ -65,9 +65,9 @@ public class JobAnnotationScanner implements ApplicationListener<ApplicationRead
                 String host = InetAddress.getLocalHost().getHostAddress();
                 // 注册心跳
                 restTemplate.postForObject(
-                        properties.getAdminUrl() + "/api/callback/heartbeat?systemCode={1}&host={2}&port={3}",
+                        properties.getAdminUrl() + "/api/callback/heartbeat?systemCode={1}&host={2}&port={3}&namespace={4}",
                         null, Void.class,
-                        properties.getSystemCode(), host, serverPort);
+                        properties.getSystemCode(), host, serverPort, properties.getNamespace());
                 // 注册每个 Job 定义
                 jobMethodMap.forEach((name, method) -> {
                     Map<String, Object> jobDef = new HashMap<>();
@@ -77,6 +77,10 @@ public class JobAnnotationScanner implements ApplicationListener<ApplicationRead
                     jobDef.put("methodName", method.getName());
                     Job anno = method.getAnnotation(Job.class);
                     jobDef.put("longRunning", anno.longRunning());
+                    jobDef.put("retryCount", anno.retryCount());
+                    jobDef.put("retryIntervalMs", anno.retryIntervalMs());
+                    jobDef.put("timeoutMs", anno.timeoutMs());
+                    jobDef.put("shardTotal", anno.shardTotal());
                     jobDef.put("description", anno.description());
                     jobDef.put("scheduleType", "NONE"); // 默认手动，调度配置由 Admin 管理
                     jobDef.put("status", "ENABLED");

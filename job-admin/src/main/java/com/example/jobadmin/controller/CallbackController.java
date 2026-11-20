@@ -1,9 +1,11 @@
 package com.example.jobadmin.controller;
 
+import com.example.jobadmin.service.AlertService;
 import com.example.jobadmin.service.InstanceManager;
 import com.example.jobadmin.entity.JobDefinition;
 import com.example.jobadmin.service.JobDefinitionService;
 import com.example.jobadmin.service.JobExecutionLogService;
+import com.example.jobadmin.service.JobEventBus;
 import com.example.jobadmin.service.dto.ExecutionResultRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -20,11 +22,14 @@ public class CallbackController {
     private final InstanceManager instanceManager;
     private final JobDefinitionService jobDefinitionService;
     private final JobExecutionLogService executionLogService;
+    private final JobEventBus eventBus;
+    private final AlertService alertService;
 
     // Executor 心跳
     @PostMapping("/heartbeat")
-    public void heartbeat(@RequestParam String systemCode, @RequestParam String host, @RequestParam int port) {
-        instanceManager.heartbeat(systemCode, host, port);
+    public void heartbeat(@RequestParam String systemCode, @RequestParam String host, @RequestParam int port,
+                          @RequestParam(defaultValue = "default") String namespace) {
+        instanceManager.heartbeat(systemCode, host, port, namespace);
     }
 
     // Executor 注册 Job 定义
@@ -37,5 +42,9 @@ public class CallbackController {
     @PostMapping("/execution-result")
     public void reportExecutionResult(@RequestBody ExecutionResultRequest request) {
         executionLogService.record(request);
+        eventBus.publish("job-status", request.getJobName());
+        if ("FAILED".equals(request.getStatus())) {
+            alertService.send("任务执行失败", request.getJobName() + " - " + request.getErrorMessage());
+        }
     }
 }

@@ -50,6 +50,11 @@ public class JobExecutorAutoConfiguration {
     }
 
     @Bean
+    public ExecutorAuthFilter executorAuthFilter(ExecutorProperties properties) {
+        return new ExecutorAuthFilter(properties);
+    }
+
+    @Bean
     public JobExecutionController jobExecutionController(ExecutionResultReporter reporter,
                                                          JobLogCollector logCollector) {
         return new JobExecutionController(reporter, logCollector);

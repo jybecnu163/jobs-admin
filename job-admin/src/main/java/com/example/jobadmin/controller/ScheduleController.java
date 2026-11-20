@@ -5,8 +5,10 @@ import com.example.jobadmin.entity.JobDefinition;
 import com.example.jobadmin.service.InstanceManager;
 import com.example.jobadmin.service.JobDefinitionService;
 import com.example.jobadmin.service.JobExecutionDispatcher;
+import com.example.jobadmin.service.JobEventBus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +32,8 @@ public class ScheduleController {
     private final JobDefinitionService jobDefinitionService;
     @Autowired
     private InstanceManager instanceManager;
+    @Autowired
+    private JobEventBus eventBus;
 
     @PostMapping("/execute/{jobId}")
     public ResponseEntity<?> executeJob(@PathVariable Long jobId) {
@@ -42,6 +47,7 @@ public class ScheduleController {
 
         try {
             dispatcher.execute(job);
+            eventBus.publish("job-status", job.getJobName());
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -54,6 +60,13 @@ public class ScheduleController {
                 .filter(j -> j.getId().equals(jobId))
                 .findFirst().orElseThrow();
         dispatcher.stop(job);
+        eventBus.publish("job-status", job.getJobName());
+    }
+
+    // SSE 订阅入口：浏览器通过 EventSource 接收任务状态变化
+    @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter events() {
+        return eventBus.subscribe();
     }
 
     // 汇总所有在线执行器上正在运行的任务名，供前端展示"在执行"状态

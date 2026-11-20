@@ -21,4 +21,6 @@ public class ExecutorProperties {
     private int heartbeatInterval = 10;
     private boolean resultCallbackEnabled = true;
     private boolean logCaptureEnabled = true;
+    private String apiToken = "";
+    private String namespace = "default";
 }

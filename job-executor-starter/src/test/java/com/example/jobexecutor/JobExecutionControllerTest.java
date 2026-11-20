@@ -29,6 +29,9 @@ class JobExecutionControllerTest {
 
     /** 测试任务：block() 会一直阻塞，直到 latch 释放或线程被中断；quick() 立即返回。 */
     public static class SampleJob {
+        static final java.util.concurrent.atomic.AtomicReference<String> LAST_SHARD =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
         private final CountDownLatch latch;
 
         SampleJob(CountDownLatch latch) {
@@ -48,6 +51,10 @@ class JobExecutionControllerTest {
 
         public void fail() {
             throw new IllegalStateException("job failed");
+        }
+
+        public void shard(int shardIndex, int shardTotal) {
+            LAST_SHARD.set(shardIndex + "/" + shardTotal);
         }
     }
 
@@ -140,6 +147,21 @@ class JobExecutionControllerTest {
         awaitRunningEmpty();
 
         verify(reporter, timeout(2000)).report(eq("test.job"), eq("FAILED"), any(), any(), contains("job failed"));
+    }
+
+    @Test
+    void shardParametersArePassedToAnnotatedMethod() throws Exception {
+        when(scanner.getMethod("test.job")).thenReturn(SampleJob.class.getMethod("shard", int.class, int.class));
+        when(scanner.getBean("test.job")).thenReturn(new SampleJob(blockLatch));
+        Map<String, String> request = new java.util.HashMap<>();
+        request.put("jobName", "test.job");
+        request.put("shardIndex", "2");
+        request.put("shardTotal", "5");
+
+        controller.execute(request);
+        awaitRunningEmpty();
+
+        assertEquals("2/5", SampleJob.LAST_SHARD.get());
     }
 
     @Test

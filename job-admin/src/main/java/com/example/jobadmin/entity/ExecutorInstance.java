@@ -16,6 +16,7 @@ public class ExecutorInstance {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String systemCode;
+    private String namespace;
     private String host;
     private Integer port;
     private String status;       // ONLINE, OFFLINE

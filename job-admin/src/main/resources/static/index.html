@@ -33,6 +33,7 @@
     <div class="header">
         <h2>Job 管理中心 <small>{{ envName }}</small></h2>
         <el-button type="primary" @click="loadJobs">刷新</el-button>
+        <el-button @click="openConfigDialog">配置管理</el-button>
     </div>
 
     <!--    &lt;!&ndash; 调试信息 &ndash;&gt;-->
@@ -73,7 +74,7 @@
             <td>
                 <button v-if="job.status==='ENABLED'" @click="disableJob(job)">禁用</button>
                 <button v-if="job.status==='DISABLED'" @click="enableJob(job)">启用</button>
-                <button @click="executeJob(job)">执行</button>
+                <button :disabled="job.status==='UNREACHABLE'" @click="executeJob(job)">执行</button>
                 <button v-if="job.longRunning" @click="stopJob(job)">停止</button>
                 <button @click="openLogDialog(job)">日志</button>
                 <button @click="openEditDialog(job)">调度</button>
@@ -113,6 +114,16 @@
     <!--        </el-table-column>-->
     <!--    </el-table>-->
 
+    <!-- 配置管理对话框 -->
+    <el-dialog v-model="configDialogVisible" title="配置导入导出" width="700px">
+        <el-input type="textarea" v-model="configText" :rows="12" placeholder="任务定义 JSON"/>
+        <div style="margin-top: 10px;">
+            <el-input v-model="importToken" placeholder="审批 Token" style="width: 240px;"/>
+            <el-button @click="exportConfig">导出</el-button>
+            <el-button type="primary" @click="importConfig">导入</el-button>
+        </div>
+    </el-dialog>
+
     <!-- 日志对话框 -->
     <el-dialog v-model="logDialogVisible" :title="'执行日志 - ' + logJobName" width="700px">
         <pre style="max-height: 400px; overflow: auto; background: #f5f5f5; padding: 10px;">{{ logLines.join('\n') || '暂无日志' }}</pre>
@@ -131,6 +142,15 @@
             <el-form-item label="表达式" v-if="editForm.scheduleType !== 'NONE'">
                 <el-input v-model="editForm.scheduleExpr"/>
             </el-form-item>
+            <el-form-item label="重试次数">
+                <el-input-number v-model="editForm.retryCount" :min="0" :max="10"/>
+            </el-form-item>
+            <el-form-item label="重试间隔(ms)">
+                <el-input-number v-model="editForm.retryIntervalMs" :min="0" :step="500"/>
+            </el-form-item>
+            <el-form-item label="超时(ms)">
+                <el-input-number v-model="editForm.timeoutMs" :min="0" :step="1000"/>
+            </el-form-item>
         </el-form>
         <template #footer>
             <el-button @click="editDialogVisible = false">取消</el-button>
@@ -145,7 +165,7 @@
     const app = createApp({
         setup() {
             // 改为你的实际地址
-            const API_BASE = 'http://localhost:8080/api'
+            const API_BASE = '/api'
             const ENV_NAME = '-测试'
 
             const jobs = ref([])
@@ -155,7 +175,10 @@
             const logDialogVisible = ref(false)
             const logJobName = ref('')
             const logLines = ref([])
-            const editForm = reactive({id: null, jobName: '', scheduleType: 'NONE', scheduleExpr: ''})
+            const configDialogVisible = ref(false)
+            const configText = ref('')
+            const importToken = ref('')
+            const editForm = reactive({id: null, jobName: '', scheduleType: 'NONE', scheduleExpr: '', retryCount: 0, retryIntervalMs: 1000, timeoutMs: null})
 
             const statusType = (s) => {
                 if (s === 'ENABLED') return 'success'
@@ -231,6 +254,33 @@
                 }
             }
 
+            const openConfigDialog = () => {
+                configDialogVisible.value = true
+            }
+
+            const exportConfig = async () => {
+                try {
+                    const r = await axios.get(`${API_BASE}/config/export`)
+                    configText.value = JSON.stringify(r.data, null, 2)
+                    ElementPlus.ElMessage.success('配置已导出到文本框')
+                } catch (e) {
+                    ElementPlus.ElMessage.error('导出失败')
+                }
+            }
+
+            const importConfig = async () => {
+                try {
+                    await axios.post(`${API_BASE}/config/import`, JSON.parse(configText.value), {
+                        headers: {'X-API-Token': importToken.value, 'X-Approval-Token': importToken.value}
+                    })
+                    ElementPlus.ElMessage.success('配置已导入')
+                    configDialogVisible.value = false
+                    loadJobs()
+                } catch (e) {
+                    ElementPlus.ElMessage.error(e.response?.data?.message || '导入失败')
+                }
+            }
+
             const openLogDialog = async (job) => {
                 logJobName.value = job.jobName
                 logLines.value = []
@@ -250,6 +300,9 @@
                 editForm.jobName = job.jobName
                 editForm.scheduleType = job.scheduleType || 'NONE'
                 editForm.scheduleExpr = job.scheduleExpr || ''
+                editForm.retryCount = job.retryCount || 0
+                editForm.retryIntervalMs = job.retryIntervalMs || 1000
+                editForm.timeoutMs = job.timeoutMs || null
                 editDialogVisible.value = true
             }
 
@@ -260,7 +313,10 @@
                     await axios.put(`${API_BASE}/jobs/${editForm.id}`, {
                         ...job,
                         scheduleType: editForm.scheduleType,
-                        scheduleExpr: editForm.scheduleExpr
+                        scheduleExpr: editForm.scheduleExpr,
+                        retryCount: editForm.retryCount,
+                        retryIntervalMs: editForm.retryIntervalMs,
+                        timeoutMs: editForm.timeoutMs
                     })
                     ElementPlus.ElMessage.success('调度配置已更新')
                     editDialogVisible.value = false
@@ -275,7 +331,12 @@
 
             onMounted(() => {
                 loadJobs()
-                setInterval(loadJobs, 10000)
+                const source = new EventSource(`${API_BASE}/schedule/events`)
+                source.addEventListener('job-status', () => loadJobs())
+                source.onerror = () => {
+                    source.close()
+                    setTimeout(() => window.location.reload(), 5000)
+                }
             })
 
             return {
@@ -289,6 +350,12 @@
                 logJobName,
                 logLines,
                 openLogDialog,
+                configDialogVisible,
+                configText,
+                importToken,
+                openConfigDialog,
+                exportConfig,
+                importConfig,
                 statusType,
                 statusText,
                 loadJobs,

@@ -23,23 +23,29 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class InstanceManager {
     private final ExecutorInstanceMapper instanceMapper;
     private final JobDefinitionService jobDefinitionService;
+    private final AlertService alertService;
 
     @Value("${job.admin.instance-select-strategy:FIRST}")
     private InstanceSelectStrategy strategy = InstanceSelectStrategy.FIRST;
+
+    @Value("${job.admin.offline-threshold:30}")
+    private int offlineThresholdSeconds = 30;
 
     private final ConcurrentHashMap<String, AtomicInteger> roundRobinCounters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> assignedCounts = new ConcurrentHashMap<>();
 
     // 接收心跳，标记在线
-    public void heartbeat(String systemCode, String host, int port) {
+    public void heartbeat(String systemCode, String host, int port, String namespace) {
         ExecutorInstance inst = instanceMapper.selectOne(
                 new LambdaQueryWrapper<ExecutorInstance>()
                         .eq(ExecutorInstance::getSystemCode, systemCode)
+                        .eq(ExecutorInstance::getNamespace, namespace)
                         .eq(ExecutorInstance::getHost, host)
                         .eq(ExecutorInstance::getPort, port));
         if (inst == null) {
             inst = new ExecutorInstance();
             inst.setSystemCode(systemCode);
+            inst.setNamespace(namespace);
             inst.setHost(host);
             inst.setPort(port);
         }
@@ -65,7 +71,7 @@ public class InstanceManager {
      */
     @Scheduled(fixedRate = 15000)
     public void checkOffline() {
-        LocalDateTime threshold = LocalDateTime.now().minusSeconds(30);
+        LocalDateTime threshold = LocalDateTime.now().minusSeconds(offlineThresholdSeconds);
         List<ExecutorInstance> onlineList = instanceMapper.selectList(
                 new LambdaQueryWrapper<ExecutorInstance>().eq(ExecutorInstance::getStatus, "ONLINE"));
         for (ExecutorInstance inst : onlineList) {
@@ -73,6 +79,7 @@ public class InstanceManager {
                 inst.setStatus("OFFLINE");
                 instanceMapper.updateById(inst);
                 log.warn("实例离线: {}:{}", inst.getHost(), inst.getPort());
+                alertService.send("执行器实例离线", inst.getHost() + ":" + inst.getPort());
                 // 如果该系统所有实例都离线，标记所有 Job 为 UNREACHABLE
                 if (isAllInstanceOffline(inst.getSystemCode())) {
                     jobDefinitionService.markUnreachableBySystem(inst.getSystemCode());
@@ -93,11 +100,19 @@ public class InstanceManager {
      * 根据配置的策略选择一个在线实例：FIRST 取第一个，ROUND_ROBIN 按系统轮询，LEAST_LOAD 取累计分配最少者。
      */
     public ExecutorInstance pickOnlineInstance(String systemCode) {
-        List<ExecutorInstance> instances = queryOnlineInstances(systemCode);
+        return pickOnlineInstance(systemCode, null);
+    }
+
+    /**
+     * 按系统编码与命名空间选择在线实例；namespace 为空时不限制命名空间。
+     */
+    public ExecutorInstance pickOnlineInstance(String systemCode, String namespace) {
+        String counterKey = systemCode + ":" + (namespace == null ? "" : namespace);
+        List<ExecutorInstance> instances = queryOnlineInstances(systemCode, namespace);
         if (instances.isEmpty()) return null;
         switch (strategy) {
             case ROUND_ROBIN:
-                AtomicInteger counter = roundRobinCounters.computeIfAbsent(systemCode, k -> new AtomicInteger());
+                AtomicInteger counter = roundRobinCounters.computeIfAbsent(counterKey, k -> new AtomicInteger());
                 int index = Math.floorMod(counter.getAndIncrement(), instances.size());
                 return instances.get(index);
             case LEAST_LOAD:
@@ -118,10 +133,12 @@ public class InstanceManager {
         }
     }
 
-    private List<ExecutorInstance> queryOnlineInstances(String systemCode) {
+    private List<ExecutorInstance> queryOnlineInstances(String systemCode, String namespace) {
         return instanceMapper.selectList(
                 new LambdaQueryWrapper<ExecutorInstance>()
                         .eq(ExecutorInstance::getSystemCode, systemCode)
+                        .eq(namespace != null && !namespace.isBlank(),
+                                ExecutorInstance::getNamespace, namespace)
                         .eq(ExecutorInstance::getStatus, "ONLINE"));
     }
 

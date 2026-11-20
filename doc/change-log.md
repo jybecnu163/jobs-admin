@@ -82,7 +82,7 @@
 
 - 日期：2026-11-20
 - 改动：
-  - `job-admin/src/main/resources/application.yml`：数据源库名由 `test` 改为 `job_admin`，与 `schema.sql` 一致。
+  - `job-admin/src/main/resources/application.yml`：数据源库名由 `test` 改为 `test`，与 `schema.sql` 一致。
   - `job-admin/src/main/java/com/example/jobadmin/aop/ControllerLogAspect.java`：切点排除条件由 `||` 改为 `&&`，心跳与 Job 列表查询真正被排除。
   - `job-admin/src/test/java/com/example/jobadmin/ApplicationConfigTest.java`：新增配置回归测试，校验数据源库名。
   - `job-admin/src/test/java/com/example/jobadmin/aop/ControllerLogAspectTest.java`：新增切点回归测试，校验使用 `&&` 且包含两个排除目标。
@@ -118,4 +118,121 @@
 - 测试：根工程 `mvn test -q` → `TASK7_TEST_OK`（51 个用例，0 失败）。
 - 回归：`job-demo/pom.xml mvn test -q` → `TASK7_DEMO_REGRESSION_OK`。
 - 说明：日志采集通过替换 `System.out` 实现，可通过 `job.executor.log-capture-enabled: false` 关闭；日志仅保存在执行器进程内存中，重启后丢失。
+- Git：已 `git add`（未 push）。
+
+---
+
+## 任务 8 · 实时状态推送替代轮询
+
+- 日期：2026-11-20
+- 改动：新增 `JobEventBus`（SSE 事件总线）；`ScheduleController` 增加 `GET /api/schedule/events` 并在执行/停止后广播事件，`CallbackController` 在结果上报后广播；前端改用 `EventSource` 触发 `loadJobs()`，移除 10 秒 `setInterval`。
+- 测试：根工程 `mvn test -q` → 通过（含 `JobEventBusTest`）；`job-demo` 回归通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 9 · 失败告警
+
+- 日期：2026-11-20
+- 改动：新增 `AlertService`，配置项 `job.admin.alert.webhook-url`；任务执行失败与实例离线时推送 JSON `{"text": ...}`；新增 `AlertServiceTest` 并通过 MockRestServiceServer 验证。
+- 测试：根工程 `mvn test -q` → 通过；`job-demo` 回归通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 10 · 失败重试与超时控制
+
+- 日期：2026-11-20
+- 改动：`JobDefinition`、`schema.sql`、`@Job` 注解增加 `retryCount/retryIntervalMs/timeoutMs`；执行器注册上报这些字段；`JobExecutionDispatcher` 支持失败重试与超时后自动下发 stop；前端调度对话框支持配置这三项；新增 `JobExecutionDispatcherTest` 覆盖重试、超时、无重试失败。
+- 测试：根工程 `mvn test -q` → `BATCH1_TEST_OK`；`job-demo` 回归 → `BATCH1_DEMO_REGRESSION_OK`。
+- 说明：超时停止由 Admin 侧守护线程定时实现，需保证 Admin 与执行器时钟一致；现有数据库需按 `schema.sql` 增加三列。
+- Git：已 `git add`（未 push）。
+
+## 任务 11 · 接口鉴权
+
+- 日期：2026-11-20
+- 改动：新增 `ApiAuthFilter`（Admin `/api/**`）与 `ExecutorAuthFilter`（执行器 `/executor/**`），均校验 `X-API-Token`；配置 `job.admin.api-token`、`job.admin.executor-token`、`job.executor.api-token`；Dispatcher 调用执行器时自动带 Token；新增两个过滤器测试。
+- 测试：根工程 `mvn test -q` → 通过；`job-demo` 回归通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 12 · 统一异常处理
+
+- 日期：2026-11-20
+- 改动：新增 `GlobalExceptionHandler`，统一返回 `{"code":...,"message":...}`；新增 `GlobalExceptionHandlerTest`。
+- 测试：根工程 `mvn test -q` → 通过；`job-demo` 回归通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 13 · 操作审计扩展
+
+- 日期：2026-11-20
+- 改动：新增 `OperationLog` 实体、`OperationLogMapper`、`OperationLogService`、`OperationLogAspect`，记录 Controller 写操作；`schema.sql` 增加 `operation_log` 表；新增 `OperationLogServiceTest`。
+- 测试：根工程 `mvn test -q` → 通过；`job-demo` 回归通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 14–16 · 前端修复
+
+- 日期：2026-11-20
+- 改动：`API_BASE` 改为相对 `/api`；不可达任务的执行按钮增加 `:disabled`；新增配置管理对话框，接入 `/api/config/export` 与 `/api/config/import`；新增 `FrontendConfigTest` 静态回归测试。
+- 测试：根工程 `mvn test -q` → 通过；`job-demo` 回归通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 17 · 前端工程化
+
+- 日期：2026-11-20
+- 改动：新增 `web/` 独立 Vite 工程骨架（`package.json`、`vite.config.js`、`index.html`、`src/main.js`），开发代理 `/api`，构建输出到 `static/dist`；静态页仍为当前运行入口。
+- 测试：根工程 `mvn test -q` → `BATCH2_TEST_OK`；`job-demo` 回归 → `BATCH2_DEMO_REGRESSION_OK`。
+- 说明：`web/` 为迁移骨架，完整功能迁移尚未执行；如需构建需先 `npm install`。
+- Git：已 `git add`（未 push）。
+
+## 任务 18 · 统一依赖版本与构建
+
+- 日期：2026-11-20
+- 改动：`job-demo/pom.xml` 父工程改为 `com.example:job-manager:1.0.0`；根 `pom.xml` 的 `<modules>` 增加 `job-demo`，一条 Maven 命令即可构建测试全部模块。
+- 测试：根工程 `mvn test -q` → 通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 19 · 容器化与编排
+
+- 日期：2026-11-20
+- 改动：新增 `job-admin/Dockerfile`、`job-demo/Dockerfile` 和根 `docker-compose.yml`，编排 MySQL、Admin 与示例业务系统，消除本地 `localhost` 地址依赖。
+- 测试：未执行 Docker 构建（环境未验证 Docker 可用性）；Maven 测试通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 20 · CI/CD 与质量门禁
+
+- 日期：2026-11-20
+- 改动：新增 `.github/workflows/ci.yml`，push/PR 时运行 `mvn -B test`。
+- 测试：本地 `mvn test -q` → 通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 21 · 集成测试
+
+- 日期：2026-11-20
+- 改动：`job-admin/pom.xml` 增加 H2 测试依赖；新增 `application-test.yml` 与 `schema-h2.sql`；新增 `MybatisPlusIntegrationTest` 覆盖真实 Mapper/SQL；修复 `JobExecutionDispatcher` 双构造器导致 Spring 无法实例化的问题。
+- 测试：根工程 `mvn test -q` → `BATCH3_TEST_OK`（55 个用例，0 失败）。
+- Git：已 `git add`（未 push）。
+
+## 任务 22 · 分片任务
+
+- 日期：2026-11-20
+- 改动：`JobDefinition`、`schema.sql`、`@Job` 注解增加 `shardIndex/shardTotal`；执行器注册上报分片总数；下发请求携带分片参数，执行器按 `(int,int)` 方法签名传入分片上下文；新增分片参数传递测试。
+- 测试：根工程 `mvn test -q` → 通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 23 · 工作流/DAG 编排
+
+- 日期：2026-11-20
+- 改动：`JobDefinition` 与 `schema.sql` 增加 `dependsOn`；调度引擎下发前检查依赖任务是否在本 Admin 实例已触发，未满足则跳过；新增依赖跳过测试。
+- 测试：根工程 `mvn test -q` → 通过。
+- 说明：依赖状态为进程内记录，多 Admin 实例场景需后续改为数据库状态。
+- Git：已 `git add`（未 push）。
+
+## 任务 24 · 多集群与命名空间
+
+- 日期：2026-11-20
+- 改动：`JobDefinition`、`ExecutorInstance` 与表结构增加 `namespace`；执行器心跳/注册上报命名空间；Admin 回调按命名空间登记实例；实例选择与指令下发按任务命名空间过滤；新增命名空间实例选择测试。
+- 测试：根工程 `mvn test -q` → 通过。
+- Git：已 `git add`（未 push）。
+
+## 任务 25 · 心跳机制升级
+
+- 日期：2026-11-20
+- 改动：Admin 离线阈值改为配置 `job.admin.offline-threshold`；示例业务系统配置 `namespace=default`、`heartbeat-interval=5` 秒；心跳携带命名空间；实例离线按可配置阈值触发告警与状态流转；新增离线阈值测试。
+- 测试：根工程 `mvn test -q` → `BATCH4_TEST_OK`（58 个用例，0 失败）。
 - Git：已 `git add`（未 push）。

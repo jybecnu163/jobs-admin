@@ -38,9 +38,9 @@ public class HeartbeatSender {
             try {
                 String host = InetAddress.getLocalHost().getHostAddress();
                 restTemplate.postForObject(
-                        properties.getAdminUrl() + "/api/callback/heartbeat?systemCode={1}&host={2}&port={3}",
+                        properties.getAdminUrl() + "/api/callback/heartbeat?systemCode={1}&host={2}&port={3}&namespace={4}",
                         null, Void.class,
-                        properties.getSystemCode(), host, serverPort);
+                        properties.getSystemCode(), host, serverPort, properties.getNamespace());
             } catch (Exception e) {
                 log.warn("心跳发送失败: {}", e.getMessage());
             }

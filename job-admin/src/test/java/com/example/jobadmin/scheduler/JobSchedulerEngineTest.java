@@ -54,6 +54,21 @@ class JobSchedulerEngineTest {
         return job;
     }
 
+    @Test
+    void jobWithUnmetDependencyIsSkipped() {
+        JobDefinition downstream = job(102L, "FIXED_RATE", "1000");
+        downstream.setDependsOn("job-101");
+        JobDefinition upstream = job(101L, "FIXED_RATE", "1000");
+        when(jobDefinitionService.getEnabledJobsWithOnlineInstance())
+                .thenReturn(List.of(downstream, upstream));
+        online();
+
+        engine.scheduleFixedRateJobs();
+
+        verify(dispatcher, never()).execute(downstream);
+        verify(dispatcher, times(1)).execute(upstream);
+    }
+
     private void online() {
         when(instanceManager.pickOnlineInstance("system-a")).thenReturn(new ExecutorInstance());
     }

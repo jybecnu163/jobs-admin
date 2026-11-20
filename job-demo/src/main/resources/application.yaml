@@ -10,3 +10,5 @@ job:
     enabled: true
     admin-url: http://localhost:8080
     system-code: job-demo   # 必须与 Admin 中预期的系统标识一致
+    namespace: default
+    heartbeat-interval: 5   # 心跳间隔（秒），Admin 离线阈值需大于该值

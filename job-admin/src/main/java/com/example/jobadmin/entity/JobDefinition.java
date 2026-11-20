@@ -25,6 +25,13 @@ public class JobDefinition {
     private Boolean enabled;     // 管理员意图，实例离线/上线不改变该值
     private String scheduleType; // CRON, FIXED_RATE, NONE
     private String scheduleExpr;
+    private Integer retryCount;
+    private Long retryIntervalMs;
+    private Long timeoutMs;
+    private Integer shardIndex;
+    private Integer shardTotal;
+    private String dependsOn;
+    private String namespace;
     private Boolean isBaselineLocked;
     private LocalDateTime nextFireTime; // 下次触发时间，由调度引擎计算并持久化
     private LocalDateTime createdAt;
